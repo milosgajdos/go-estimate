@@ -11,15 +11,15 @@ import (
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
-// WithCovN draws n random samples from a zero-mean Gaussian distribution with covariance Cov.
-// It returns matrix with size m x n which contains the random samples stored as its columns.
-// It fails with error if n is non-positive and/or smaller than 2 or if the C fails be factorized using SVD.
+// WithCovN draws n random samples from a zero-mean Normal aka Gaussian distribution with covariance cov.
+// It returns matrix with size m x n which contains the random samples stored in its columns.
+// It fails with error if n is non-positive and/or smaller than 1 or if the cov fails be factorized using SVD.
 func WithCovN(cov *mat.Dense, n int) (*mat.Dense, error) {
 	if n <= 1 {
 		return nil, fmt.Errorf("Invalid number of samples requested: %d", n)
 	}
 
-	// Use SVD instead of Cholesky as Cholesky can be numerically unstable if C is (almost) singular
+	// Use SVD instead of Cholesky as Cholesky can be numerically unstable if cov is (almost) singular
 	var svd mat.SVD
 	ok := svd.Factorize(cov, mat.SVDFull)
 	if !ok {
@@ -50,7 +50,7 @@ func WithCovN(cov *mat.Dense, n int) (*mat.Dense, error) {
 // RouletteDrawN implements the Roulette Wheel Draw a.k.a. Fitness Proportionate Selection:
 // - https://en.wikipedia.org/wiki/Fitness_proportionate_selection
 // - http://www.keithschwarz.com/darts-dice-coins/
-// It returns a slice of indices of the vector p for each draw.
+// It returns a slice of n indices into the vector p.
 // It fails with error if p is empty or nil.
 func RouletteDrawN(p []float64, n int) ([]int, error) {
 	if p == nil || len(p) == 0 {

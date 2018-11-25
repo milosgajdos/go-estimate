@@ -7,7 +7,7 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-func TestWithCov(t *testing.T) {
+func TestWithCovN(t *testing.T) {
 	assert := assert.New(t)
 
 	data := []float64{1.0, 0.0, 0.0, 1.0}

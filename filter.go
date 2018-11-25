@@ -14,11 +14,11 @@ type Filter interface {
 // Propagator propagates internal state
 type Propagator interface {
 	// Propagate propagates internal state of the system to the next step and returns it
-	Propage(*mat.Dense, *mat.Dense) (*mat.Dense, error)
+	Propagate(*mat.Dense, *mat.Dense) (*mat.Dense, error)
 }
 
 // Observer observes external state
 type Observer interface {
-	// Observe observer external state of the system and returns it
+	// Observe observes external state of the system and returns it
 	Observe(*mat.Dense, *mat.Dense) (*mat.Dense, error)
 }

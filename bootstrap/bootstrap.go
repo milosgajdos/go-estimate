@@ -16,9 +16,6 @@ import (
 type InitCond struct {
 	// State is Bootstrap Filter initial state
 	State *mat.Dense
-	// Cov is initial state covariance matrix
-	// It allows to specify confidence do in State
-	Cov *mat.Dense
 }
 
 // Config is Bootstrap Filter configuration
@@ -31,7 +28,9 @@ type Config struct {
 	ParticleCount int
 	// Alpha is particle filter regulariser
 	Alpha float64
-	// ErrDist is expected output error distribution
+	// Cov is particle filter covariance
+	Cov *mat.Dense
+	// ErrDist is output error distribution PDF
 	ErrDist distmv.RandLogProber
 }
 
@@ -39,17 +38,17 @@ type Config struct {
 // For more information about BF/PF see:
 // https://en.wikipedia.org/wiki/Particle_filter
 type Bootstrap struct {
-	// p is Propagator of the systems internal state
+	// p propagates internal system state
 	p filter.Propagator
-	// o is Observer of the systems external state
+	// o observes external system state
 	o filter.Observer
-	// alpha is particle filter regularise
+	// alpha is filter regulariser
 	alpha float64
-	// w stores particle weights
+	// w stores  particle weights
 	w []float64
 	// x stores filter particles
 	x *mat.Dense
-	// errDist is expected output error distribution
+	// errDist isutput error distribution PDF
 	errDist distmv.RandLogProber
 }
 
@@ -72,11 +71,12 @@ func New(c *Config, init *InitCond) (*Bootstrap, error) {
 	}
 
 	// initialize filter particles
-	x, err := rnd.WithCovN(init.Cov, c.ParticleCount)
+	x, err := rnd.WithCovN(c.Cov, c.ParticleCount)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to initialize BF particles: %v", err)
 	}
 	xRows, xCols := x.Dims()
+
 	// center particles around initial state
 	for c := 0; c < xCols; c++ {
 		for r := 0; r < xRows; r++ {
@@ -108,10 +108,6 @@ func New(c *Config, init *InitCond) (*Bootstrap, error) {
 // It corrects internal system state x in place and returns it.
 // It returns error if it fails to correct internal state.
 func (b *Bootstrap) Run(x, u, z *mat.Dense) (*mat.Dense, error) {
-	// get state matrix dimensions
-	xRows, _ := x.Dims()
-	zRows, _ := z.Dims()
-
 	// propagate particles to the next step
 	xNext, err := b.p.Propagate(b.x, u)
 	if err != nil {
@@ -122,6 +118,10 @@ func (b *Bootstrap) Run(x, u, z *mat.Dense) (*mat.Dense, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// get state matrix dimensions
+	xRows, _ := x.Dims()
+	zRows, _ := z.Dims()
 
 	// update particle weights:
 	// - calculate observation error for each particle output

@@ -31,33 +31,32 @@ func (o *mockObserver) Observe(x, u *mat.Dense) (*mat.Dense, error) {
 }
 
 var (
-	pCount   int
-	alpha    float64
-	config   *Config
-	initCond *InitCond
+	pCount int
+	config *Config
+	start  *InitCond
 )
 
 func setup() {
 	// BF parameters
 	pCount = 10
-	alpha = 10.0
-	errDist, _ := distmv.NewNormal([]float64{0, 0}, mat.NewSymDense(2, []float64{1, 0, 0, 1}), nil)
-	covVals := []float64{1.0, 0.0, 0.0, 1.0}
-	cov := mat.NewDense(2, 2, covVals)
-	// initial condition
-	stateVals := []float64{1.0, 1.0}
-	state := mat.NewDense(2, 1, stateVals)
-	initCond = &InitCond{State: state}
+	err, _ := distmv.NewNormal([]float64{0, 0}, mat.NewSymDense(2, []float64{1, 0, 0, 1}), nil)
 
 	config = &Config{
 		Propagator:    &mockPropagator{},
 		Observer:      &mockObserver{},
 		ParticleCount: pCount,
-		Alpha:         alpha,
-		Cov:           cov,
-		ErrDist:       errDist,
+		Err:           err,
 	}
+	// initial condition
+	stateVals := []float64{1.0, 1.0}
+	state := mat.NewDense(2, 1, stateVals)
+	vals := []float64{1.0, 0.0, 0.0, 1.0}
+	cov := mat.NewDense(2, 2, vals)
 
+	start = &InitCond{
+		State: state,
+		Cov:   cov,
+	}
 }
 
 func TestMain(m *testing.M) {
@@ -69,36 +68,32 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func TestNew(t *testing.T) {
+func TestNewInit(t *testing.T) {
 	assert := assert.New(t)
 
 	// invalid count
 	config.ParticleCount = -10
-	f, err := New(config, initCond)
+	f, err := New(config)
 	assert.Nil(f)
 	assert.Error(err)
-
+	// valid config should succeed
 	config.ParticleCount = pCount
-	f, err = New(config, initCond)
+	f, err = New(config)
 	assert.NotNil(f)
 	assert.NoError(err)
-
-	// test negative alpha
-	_alpha := config.Alpha
-	config.Alpha = -10
-	config.ParticleCount = pCount
-	f, err = New(config, initCond)
-	assert.NotNil(f)
+	// initialize filter
+	err = f.Init(start)
 	assert.NoError(err)
-	// reset Alpha back to original value
-	config.Alpha = _alpha
 }
 
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(config, initCond)
+	f, err := New(config)
 	assert.NotNil(f)
+	assert.NoError(err)
+
+	err = f.Init(start)
 	assert.NoError(err)
 
 	data := []float64{1.0, 1.0}
@@ -122,4 +117,19 @@ func TestRun(t *testing.T) {
 	xNew, err = f.Run(x, nil, nil)
 	assert.Nil(xNew)
 	assert.Error(err)
+}
+
+func TestResample(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(config)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	err = f.Init(start)
+	assert.NoError(err)
+
+	alpha := 10.0
+	err = f.Resample(alpha)
+	assert.NoError(err)
 }

@@ -168,7 +168,9 @@ func (b *Bootstrap) Resample(alpha float64) error {
 		b.w[i] = 1 / float64(len(b.w))
 	}
 
-	// zero mean (particle) state values
+	// we need to create covariance matrix of particles
+	// 1. we will calculate zero mean of the particle statues
+	// 2. X * X^T will give us particle state covariance
 	rowAvgs := matrix.RowSums(b.x)
 	floats.Scale(float64(len(b.w)), rowAvgs)
 	for c := range b.w {
@@ -180,6 +182,7 @@ func (b *Bootstrap) Resample(alpha float64) error {
 	sigma.Mul(x, x.T())
 	sigma.Scale(1/(float64(len(b.w))-1.0), sigma)
 
+	// factorize the matrix
 	var svd mat.SVD
 	ok := svd.Factorize(sigma, mat.SVDFull)
 	if !ok {
@@ -205,8 +208,8 @@ func (b *Bootstrap) Resample(alpha float64) error {
 	if alpha <= 0 {
 		alpha = AlphaGauss(rows, cols)
 	}
-
 	m.Scale(alpha, m)
+	// draw random perturbations
 	b.x.Add(b.x, m)
 
 	return nil

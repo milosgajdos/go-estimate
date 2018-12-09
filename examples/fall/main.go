@@ -5,11 +5,14 @@ import (
 	"image/color"
 	"log"
 
+	"github.com/milosgajdos83/go-filter/bootstrap"
 	"github.com/milosgajdos83/go-filter/rnd"
 	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat/distmv"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
 )
 
 // Fall is a model of a falling ball
@@ -30,7 +33,7 @@ func NewFall(A, B, C, D *mat.Dense) (*Fall, error) {
 }
 
 // Propagate propagates internal state x of falling ball to the next step
-func (b *Fall) Propagate(x, u *mat.Dense) (*mat.Dense, error) {
+func (b *Fall) Propagate(x, u mat.Matrix) (*mat.Dense, error) {
 	out := new(mat.Dense)
 	out.Mul(b.A, x)
 
@@ -43,7 +46,7 @@ func (b *Fall) Propagate(x, u *mat.Dense) (*mat.Dense, error) {
 }
 
 // Observe observes external state of falling ball based with internal state x
-func (b *Fall) Observe(x, u *mat.Dense) (*mat.Dense, error) {
+func (b *Fall) Observe(x, u mat.Matrix) (*mat.Dense, error) {
 	out := new(mat.Dense)
 	out.Mul(b.C, x)
 
@@ -55,10 +58,18 @@ func (b *Fall) Observe(x, u *mat.Dense) (*mat.Dense, error) {
 	return out, nil
 }
 
-func plotSystem(model, meas *mat.Dense, name string) error {
+// Dims returns input and output dimensions
+func (b *Fall) Dims() (int, int) {
+	_, aCols := b.A.Dims()
+	dRows, _ := b.D.Dims()
+
+	return aCols, dRows
+}
+
+func NewSystemPlot(model, meas, filter *mat.Dense) (*plot.Plot, error) {
 	p, err := plot.New()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	p.Title.Text = "Falling Ball"
 	p.X.Label.Text = "time"
@@ -68,10 +79,11 @@ func plotSystem(model, meas *mat.Dense, name string) error {
 	modelData := makePoints(model)
 	modelScatter, err := plotter.NewScatter(modelData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	modelScatter.GlyphStyle.Color = color.RGBA{R: 255, B: 128, A: 255}
-	modelScatter.GlyphStyle.Radius = vg.Points(2)
+	modelScatter.Shape = draw.PyramidGlyph{}
+	modelScatter.GlyphStyle.Radius = vg.Points(3)
 
 	p.Add(modelScatter)
 	p.Legend.Add("model", modelScatter)
@@ -80,20 +92,28 @@ func plotSystem(model, meas *mat.Dense, name string) error {
 	measData := makePoints(meas)
 	measScatter, err := plotter.NewScatter(measData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	measScatter.GlyphStyle.Color = color.RGBA{G: 255, A: 128}
-	measScatter.GlyphStyle.Radius = vg.Points(2)
+	measScatter.GlyphStyle.Radius = vg.Points(3)
 
 	p.Add(measScatter)
 	p.Legend.Add("measurement", measScatter)
 
-	// Save the plot to a PNG file.
-	if err := p.Save(4*vg.Inch, 4*vg.Inch, name); err != nil {
-		return err
+	// Make a scatter plotter for filter data
+	filterPoints := makePoints(filter)
+	filterScatter, err := plotter.NewScatter(filterPoints)
+	if err != nil {
+		log.Fatalf("Failed to create partcle scatter: %v", err)
 	}
+	filterScatter.GlyphStyle.Color = color.RGBA{R: 169, G: 169, B: 169}
+	filterScatter.Shape = draw.CrossGlyph{}
+	filterScatter.GlyphStyle.Radius = vg.Points(3)
 
-	return nil
+	p.Add(filterScatter)
+	p.Legend.Add("filtered", filterScatter)
+
+	return p, nil
 }
 
 func makePoints(m *mat.Dense) plotter.XYs {
@@ -126,42 +146,114 @@ func main() {
 	x := mat.NewDense(2, 1, []float64{100.0, 0.0})
 	u := mat.NewDense(1, 1, []float64{-1.0})
 
-	steps := 10
-	// model measurement i.e. true state
-	model := mat.NewDense(steps, 2, nil)
+	steps := 14
+	// modelOut measurement i.e. true output state
+	modelOut := mat.NewDense(steps, 2, nil)
 	// output measurement i.e. output + error
 	meas := mat.NewDense(steps, 2, nil)
-	measCov := mat.NewDense(1, 1, []float64{6.25})
+	measCov := mat.NewSymDense(1, []float64{0.25})
+	// corrected output by filter
+	filterOut := mat.NewDense(steps, 2, nil)
+
+	// create Bootstrap Filter
+	pCount := 100
+	errOut, _ := distmv.NewNormal([]float64{0}, measCov, nil)
+	config := &bootstrap.Config{
+		Model:         ball,
+		ParticleCount: pCount,
+		Err:           errOut,
+	}
+
+	stateCov := mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	start := &bootstrap.InitCond{
+		State: x,
+		Cov:   stateCov,
+	}
+	// create new filter and initialize it
+	f, err := bootstrap.NewFilter(config)
+	if err != nil {
+		log.Fatalf("Failed to create filter: %v", err)
+	}
+	if err := f.Init(start); err != nil {
+		log.Fatalf("Failed to initialise filter: %v", err)
+	}
+
+	// z is system measurement: y+noise
+	z := new(mat.Dense)
+
+	// filter initial internal state
+	xFilter := x
+	// filter output state
+	yFilter := new(mat.Dense)
 
 	for i := 0; i < steps; i++ {
+		// model internal state ground truth
 		x, err = ball.Propagate(x, u)
 		if err != nil {
-			log.Fatalf("Propagation error: %v", err)
+			log.Fatalf("Model Propagation error: %v", err)
 		}
 
-		//fmt.Printf("State %d:\n%v\n", i, mxFormat(x))
+		fmt.Printf("TRUTH State %d:\n%v\n", i, mxFormat(x))
 
+		// model output state ground truth
 		y, err := ball.Observe(x, u)
 		if err != nil {
-			log.Fatalf("Observation error: %v", err)
+			log.Fatalf("Model Observation error: %v", err)
 		}
-		model.Set(i, 1, y.At(0, 0))
-		model.Set(i, 0, float64(i))
+		modelOut.Set(i, 0, float64(i))
+		modelOut.Set(i, 1, y.At(0, 0))
 
-		// generate measurement error and perturb output with it
-		measErr, err := rnd.WithCovN(measCov, 1)
+		fmt.Printf("TRUTH Output %d:\n%v\n", i, mxFormat(y))
+
+		// measurement noise
+		noise, err := rnd.WithCovN(measCov, 1)
 		if err != nil {
 			log.Fatalf("Measurement error: %v", err)
 		}
-		y.Add(y, measErr)
-		meas.Set(i, 1, y.At(0, 0))
+		// measurement: z = y+noise
+		z.Add(y, noise)
 		meas.Set(i, 0, float64(i))
+		meas.Set(i, 1, z.At(0, 0))
 
-		//fmt.Printf("Output %d:\n%v\n", i, mxFormat(y))
-		//fmt.Println("----------------")
+		fmt.Printf("Measurement %d:\n%v\n", i, mxFormat(z))
+
+		// propagate particle filters to the next step
+		yFilter, err = f.Predict(xFilter, u)
+		if err != nil {
+			log.Fatalf("Filter Prediction error: %v", err)
+		}
+
+		fmt.Printf("FILTER Output %d:\n%v\n", i, mxFormat(yFilter))
+
+		// system model i.e. ground TRUTH
+		xFilter, err = f.Correct(xFilter, z)
+		if err != nil {
+			log.Fatalf("Filter Correction error: %v", err)
+		}
+
+		fmt.Printf("CORRECTED State %d:\n%v\n", i, mxFormat(xFilter))
+
+		yCorr, err := f.Model.Observe(xFilter, u)
+		if err != nil {
+			log.Fatalf("Filter Observation error: %v", err)
+		}
+		filterOut.Set(i, 0, float64(i))
+		filterOut.Set(i, 1, yCorr.At(0, 0))
+
+		fmt.Printf("CORRECTED Output %d:\n%v\n", i, mxFormat(yCorr))
+		fmt.Println("----------------")
 	}
 
-	if err := plotSystem(model, meas, "system.png"); err != nil {
-		log.Fatalf("Failed to plot system: %v", err)
+	p, err := NewSystemPlot(modelOut, meas, filterOut)
+	if err != nil {
+		log.Fatalf("Failed to make plot: %v", err)
 	}
+
+	//name := "system.svg"
+	name := "system.png"
+	// Save the plot to a PNG file.
+	if err := p.Save(10*vg.Inch, 10*vg.Inch, name); err != nil {
+		log.Fatalf("Failed to save plot to %s: %v", name, err)
+	}
+
 }

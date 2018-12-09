@@ -15,14 +15,12 @@ import (
 
 // Config is Bootstrap Filter configuration
 type Config struct {
-	// Propagator is particle filter propagator
-	Propagator filter.Propagator
-	// Observer is particle filter Observer
-	Observer filter.Observer
+	// Model is a system model
+	Model filter.Model
 	// ParticleCount specifies number of filter particles
 	ParticleCount int
-	// Err is output error probability density function (PDF)
-	Err distmv.RandLogProber
+	// Err probability density function (PDF) of output error
+	Err distmv.LogProber
 }
 
 // InitCond is Bootstrap Filter initial state condition
@@ -30,34 +28,39 @@ type InitCond struct {
 	// State is initial state
 	State *mat.Dense
 	// Cov is initial covariance
-	Cov *mat.Dense
+	Cov *mat.SymDense
 }
 
-// Bootstrap is a Bootstrap Filter aka Particle Filter
+// Bootstrap is a Bootstrap Filter (BF) aka Particle Filter
 // For more information about Bootstrap (Particle) Filter see:
 // https://en.wikipedia.org/wiki/Particle_filter
 type Bootstrap struct {
-	// p propagates internal system state
-	p filter.Propagator
-	// o observes external system state
-	o filter.Observer
-	// w stores  particle weights
+	// Model is bootstrap filter system model
+	Model filter.Model
+	// w stores particle weights
 	w []float64
 	// x stores filter particles
 	x *mat.Dense
-	// errDist isutput error distribution PDF
-	err distmv.RandLogProber
+	// y stores particle outputs
+	y *mat.Dense
+	// diff is a buffer that stores a diff
+	// between measurement and particle output
+	// we pre-allocate it in Init() so it doesnt
+	// have to be reallocated on every call to Correct()
+	diff []float64
+	// ErrPDF is PDF (Probab. Density Function) of filter output error
+	ErrPDF distmv.LogProber
 }
 
-// New creates new Bootstrap Filter with config c and returns it.
-// It returns error if the filter fails to be created.
-func New(c *Config) (*Bootstrap, error) {
+// NewFilter creates new Bootstrap Filter with config c and returns it.
+// It returns error if non-negative number or filter particles is given.
+func NewFilter(c *Config) (*Bootstrap, error) {
 	// must have at least one particle; can't be negative
 	if c.ParticleCount <= 0 {
 		return nil, fmt.Errorf("Invalid particle count: %d", c.ParticleCount)
 	}
 
-	// initialize particle weights to equal probabilities
+	// Initialize particle weights to equal probabilities:
 	// particle weights must sum up to 1 to represent probability
 	w := make([]float64, c.ParticleCount)
 	for i := 0; i < c.ParticleCount; i++ {
@@ -65,31 +68,119 @@ func New(c *Config) (*Bootstrap, error) {
 	}
 
 	return &Bootstrap{
-		p:   c.Propagator,
-		o:   c.Observer,
-		w:   w,
-		err: c.Err,
+		Model:  c.Model,
+		w:      w,
+		ErrPDF: c.Err,
 	}, nil
 }
 
-// Init initializes Bootstrap Filter state to start initial condition and returns error if it fails.
-func (b *Bootstrap) Init(start *InitCond) error {
-	// initialize filter particles by drawing randomly from distribution with covariance stat.Cov
-	x, err := rnd.WithCovN(start.Cov, len(b.w))
+// Init initializes internal state of Bootstrap Filter to initial condition init.
+// It returns error if it fails to generate filter particles.
+func (b *Bootstrap) Init(init *InitCond) error {
+	// draw particles from distribution with covariance start.Cov
+	x, err := rnd.WithCovN(init.Cov, len(b.w))
 	if err != nil {
 		return fmt.Errorf("Failed to initialize filter: %v", err)
 	}
-	rows, cols := x.Dims()
 
+	rows, cols := x.Dims()
+	// center particles around initial condition start.State
 	for c := 0; c < cols; c++ {
 		for r := 0; r < rows; r++ {
-			x.Set(r, c, x.At(r, c)+start.State.At(r, 0))
+			val := x.At(r, c)
+			x.Set(r, c, val+init.State.At(r, 0))
 		}
 	}
-
 	b.x = x
 
+	// initialise particle filter output
+	_, out := b.Model.Dims()
+	b.y = mat.NewDense(out, cols, nil)
+
+	b.diff = make([]float64, out)
+
 	return nil
+}
+
+// Predict predicts the next output of the system given the state x and input u and returns it.
+// Both input parameters are single column matrices:
+// - x: system inputs (Nx1; N: dimension of input state)
+// - u: system control inputs stored as columns (Mx1; M: dimension of input)
+// It returns error if it fails to propagate either the system or the particles to the next state.
+func (b *Bootstrap) Predict(x, u *mat.Dense) (*mat.Dense, error) {
+	// propagate input state to the next step
+	xNext, err := b.Model.Propagate(x, u)
+	if err != nil {
+		return nil, fmt.Errorf("Input state propagation failed: %v", err)
+	}
+
+	// propagate particle filters to the next step
+	for i := range b.w {
+		xPartNext, err := b.Model.Propagate(b.x.ColView(i), u)
+		if err != nil {
+			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
+		}
+		vec, ok := xPartNext.ColView(0).(*mat.VecDense)
+		if !ok {
+			return nil, fmt.Errorf("Invalid state returned: %v", xPartNext)
+		}
+		b.x.SetCol(i, vec.RawVector().Data)
+	}
+
+	// observe system output in the next step
+	yNext, err := b.Model.Observe(xNext, u)
+	if err != nil {
+		return nil, fmt.Errorf("Output state observation failed: %v", err)
+	}
+
+	// observe particle output in the next step
+	for i := range b.w {
+		yPartNext, err := b.Model.Observe(b.x.ColView(i), u)
+		if err != nil {
+			return nil, fmt.Errorf("Particle state observation failed: %v", err)
+		}
+		vec, ok := yPartNext.ColView(0).(*mat.VecDense)
+		if !ok {
+			return nil, fmt.Errorf("Invalid output returned: %v", yPartNext)
+		}
+		b.y.SetCol(i, vec.RawVector().Data)
+	}
+
+	return yNext, nil
+}
+
+// Correct corrects the system state x and output y using the measurement z and returns it.
+// Both function parameters are single column matrices:
+// - x: system state to correct (Nx1; N: dimension of system state)
+// - z: external measurements (Rx1; R: dimension of measurement)
+func (b *Bootstrap) Correct(x, z *mat.Dense) (*mat.Dense, error) {
+	// get output matrix dimensions
+	rows, _ := z.Dims()
+
+	// Update particle weights:
+	// - calculate observation error for each particle output
+	// - multiply the resulting error with particle weight
+	for c := range b.w {
+		for r := 0; r < rows; r++ {
+			b.diff[r] = z.At(r, 0) - b.y.ColView(c).AtVec(r)
+		}
+		b.w[c] = b.w[c] * math.Exp(b.ErrPDF.LogProb(b.diff))
+	}
+
+	// normalize the particle weights so they express probability
+	floats.Scale(1/floats.Sum(b.w), b.w)
+
+	wavg := 0.0
+	// update/correct particles estimates to weighted average
+	for r := 0; r < rows; r++ {
+		for c := range b.w {
+			wavg += b.w[c] * b.x.At(r, c)
+		}
+		x.Set(r, 0, wavg)
+		wavg = 0.0
+	}
+
+	return x, nil
 }
 
 // Run runs Bootstrap Filter for given system parameters.
@@ -100,50 +191,25 @@ func (b *Bootstrap) Init(start *InitCond) error {
 // It corrects system state x in place using measurement z and returns it.
 // It returns error if it fails to correct x state.
 func (b *Bootstrap) Run(x, u, z *mat.Dense) (*mat.Dense, error) {
-	// propagate particles to the next step
-	xNext, err := b.p.Propagate(b.x, u)
+	// predict the next state
+	y, err := b.Predict(x, u)
 	if err != nil {
-		return nil, fmt.Errorf("State propagation failed: %v", err)
+		return nil, err
 	}
-	// observe particle system output in the next step
-	zNext, err := b.o.Observe(xNext, u)
+
+	// correct the output and return it
+	xCor, err := b.Correct(y, z)
 	if err != nil {
-		return nil, fmt.Errorf("State observation failed: %v", err)
+		return nil, err
 	}
 
-	// get state and measurement matrix dimensions
-	xRows, _ := x.Dims()
-	zRows, _ := z.Dims()
-
-	// update particle weights:
-	// - calculate observation error for each particle output
-	// - multiply the resulting error with particle weight
-	diff := make([]float64, zRows)
-	for c := range b.w {
-		for r := 0; r < zRows; r++ {
-			diff[r] = z.At(r, 0) - zNext.ColView(c).AtVec(r)
-		}
-		b.w[c] = b.w[c] * math.Exp(b.err.LogProb(diff))
-	}
-	// normalize the weights so they express probability
-	floats.Scale(floats.Sum(b.w), b.w)
-
-	// update/correct particles estimates to weighted average
-	for c := range b.w {
-		for r := 0; r < xRows; r++ {
-			b.x.Set(r, c, b.x.At(r, c)*b.w[c])
-		}
-	}
-	// set new x estimate and return it
-	x.SetCol(0, matrix.RowSums(b.x))
-
-	return x, nil
+	return xCor, nil
 }
 
 // Resample allows to resample filter particles.
 // It runs the filter and replaces the existing particles with new ones
 // It allows to specify a regularization parameter alpha.
-// If invalid (non-positive) alpha is provided we compute optimal alpha for  gaussian kernel.
+// If invalid (non-positive) alpha is provided we use optimal alpha for gaussian kernel.
 func (b *Bootstrap) Resample(alpha float64) error {
 	// randomly pick new particles based on their weights
 	// rnd.RouletteDrawN returns a slice of column indices to b.x

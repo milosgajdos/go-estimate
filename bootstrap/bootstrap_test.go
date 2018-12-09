@@ -2,7 +2,9 @@ package bootstrap
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,52 +12,92 @@ import (
 	"gonum.org/v1/gonum/stat/distmv"
 )
 
-type mockPropagator struct{}
+type mockModel struct {
+	A *mat.Dense
+	B *mat.Dense
+	C *mat.Dense
+	D *mat.Dense
+}
 
-func (p *mockPropagator) Propagate(x, u *mat.Dense) (*mat.Dense, error) {
-	if x == nil {
+func mxFormat(m *mat.Dense) fmt.Formatter {
+	return mat.Formatted(m, mat.Prefix(""), mat.Squeeze())
+}
+
+// Propagate propagates internal state x of falling ball to the next step
+func (m *mockModel) Propagate(x, u mat.Matrix) (*mat.Dense, error) {
+	if reflect.ValueOf(x).IsNil() {
 		return nil, errors.New("MockPropagator Error")
 	}
 
-	return x, nil
+	out := new(mat.Dense)
+	out.Mul(m.A, x)
+
+	outU := new(mat.Dense)
+	outU.Mul(m.B, u)
+
+	out.Add(out, outU)
+
+	return out, nil
 }
 
-type mockObserver struct{}
-
-func (o *mockObserver) Observe(x, u *mat.Dense) (*mat.Dense, error) {
-	if u == nil {
+func (m *mockModel) Observe(x, u mat.Matrix) (*mat.Dense, error) {
+	if reflect.ValueOf(u).IsNil() {
 		return nil, errors.New("MockObserver Error")
 	}
 
-	return x, nil
+	out := new(mat.Dense)
+	out.Mul(m.C, x)
+
+	outU := new(mat.Dense)
+	outU.Mul(m.D, u)
+
+	out.Add(out, outU)
+
+	return out, nil
+}
+
+func (m *mockModel) Dims() (int, int) {
+	_, aCols := m.A.Dims()
+	dRows, _ := m.D.Dims()
+
+	return aCols, dRows
 }
 
 var (
 	pCount int
 	config *Config
 	start  *InitCond
+	model  *mockModel
+	u      *mat.Dense
 )
 
 func setup() {
 	// BF parameters
 	pCount = 10
-	err, _ := distmv.NewNormal([]float64{0, 0}, mat.NewSymDense(2, []float64{1, 0, 0, 1}), nil)
+	measCov := mat.NewSymDense(1, []float64{0.25})
+	errOut, _ := distmv.NewNormal([]float64{0}, measCov, nil)
+
+	u = mat.NewDense(1, 1, []float64{-1.0})
+	// initial condition
+	state := mat.NewDense(2, 1, []float64{1.0, 1.0})
+	stateCov := mat.NewSymDense(2, []float64{1, 0, 0, 1})
+
+	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
+	B := mat.NewDense(2, 1, []float64{0.5, 1.0})
+	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
+	D := mat.NewDense(1, 1, []float64{0.0})
+
+	model := &mockModel{A, B, C, D}
 
 	config = &Config{
-		Propagator:    &mockPropagator{},
-		Observer:      &mockObserver{},
+		Model:         model,
 		ParticleCount: pCount,
-		Err:           err,
+		Err:           errOut,
 	}
-	// initial condition
-	stateVals := []float64{1.0, 1.0}
-	state := mat.NewDense(2, 1, stateVals)
-	vals := []float64{1.0, 0.0, 0.0, 1.0}
-	cov := mat.NewDense(2, 2, vals)
 
 	start = &InitCond{
 		State: state,
-		Cov:   cov,
+		Cov:   stateCov,
 	}
 }
 
@@ -68,17 +110,17 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func TestNewInit(t *testing.T) {
+func TestNewFilterInit(t *testing.T) {
 	assert := assert.New(t)
 
 	// invalid count
 	config.ParticleCount = -10
-	f, err := New(config)
+	f, err := NewFilter(config)
 	assert.Nil(f)
 	assert.Error(err)
 	// valid config should succeed
 	config.ParticleCount = pCount
-	f, err = New(config)
+	f, err = NewFilter(config)
 	assert.NotNil(f)
 	assert.NoError(err)
 	// initialize filter
@@ -89,7 +131,7 @@ func TestNewInit(t *testing.T) {
 func TestRun(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(config)
+	f, err := NewFilter(config)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -99,22 +141,13 @@ func TestRun(t *testing.T) {
 	data := []float64{1.0, 1.0}
 	x := mat.NewDense(2, 1, data)
 	// for simplicity:
-	// - we set system input u to x
-	// - we consider output the same as x
-	xNew, err := f.Run(x, x, x)
+	// - we set measurement to u
+	xNew, err := f.Run(x, u, u)
 	assert.NoError(err)
 	assert.NotNil(xNew)
 
-	// we simulate propagator error by setting filter particles to nil
-	_x := f.x
-	f.x = nil
-	xNew, err = f.Run(x, nil, x)
-	assert.Nil(xNew)
-	assert.Error(err)
-
-	// we simulate observer error by setting input to nil
-	f.x = _x
-	xNew, err = f.Run(x, nil, nil)
+	// we simulate propagator error by setting input to nil
+	xNew, err = f.Run(nil, u, u)
 	assert.Nil(xNew)
 	assert.Error(err)
 }
@@ -122,7 +155,7 @@ func TestRun(t *testing.T) {
 func TestResample(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(config)
+	f, err := NewFilter(config)
 	assert.NotNil(f)
 	assert.NoError(err)
 

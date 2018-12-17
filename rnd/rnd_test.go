@@ -11,7 +11,7 @@ func TestWithCovN(t *testing.T) {
 	assert := assert.New(t)
 
 	data := []float64{1.0, 0.0, 0.0, 1.0}
-	covTest := mat.NewDense(2, 2, data)
+	covTest := mat.NewSymDense(2, data)
 	covR, _ := covTest.Dims()
 
 	// n must be bigger than 1

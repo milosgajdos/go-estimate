@@ -11,9 +11,9 @@ import (
 	"gonum.org/v1/gonum/stat/distuv"
 )
 
-// WithCovN draws n random samples from a zero-mean Normal aka Gaussian distribution with covariance cov.
-// It returns matrix with size m x n which contains the random samples stored in its columns.
-// It fails with error if n is non-positive and/or smaller than 1 or if the cov fails to actorize using SVD.
+// WithCovN draws n random samples from a zero-mean Normal (aka Gaussian) distribution with covariance cov.
+// It returns matrix which contains the randomly generated samples stored in its columns.
+// It fails with error if n is non-positive and/or smaller than 1 or if SVD factorization of cov fails.
 func WithCovN(cov mat.Symmetric, n int) (*mat.Dense, error) {
 	if n <= 0 {
 		return nil, fmt.Errorf("Invalid number of samples requested: %d", n)

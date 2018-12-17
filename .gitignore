@@ -11,3 +11,32 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# Folders
+_obj
+_test
+_build
+
+# Architecture specific extensions/prefixes
+*.[568vq]
+[568vq].out
+
+*.cgo1.go
+*.cgo2.c
+_cgo_defun.c
+_cgo_gotypes.go
+_cgo_export.*
+
+_testmain.go
+
+*.exe
+*.test
+*.prof
+
+# ignore go build and test outputs
+coverage.txt
+coverage.out
+
+# ignore HTML files produced by gosom
+*.html
+vendor/

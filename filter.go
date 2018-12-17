@@ -3,28 +3,26 @@ package filter
 import "gonum.org/v1/gonum/mat"
 
 // Filter is a dynamical system filter.
-// For more information about dynamical systems see:
-// https://en.wikipedia.org/wiki/Dynamical_system
 type Filter interface {
 	// Predict predicts the next system output
-	Predict(*mat.Dense, *mat.Dense, *mat.Dense) (*mat.Dense, error)
-	// Correct corrects the system output based on external measurement
-	Correct(*mat.Dense, *mat.Dense, *mat.Dense) (*mat.Dense, error)
+	Predict(mat.Vector, mat.Vector) (Estimate, error)
+	// Update updates the system state based on external measurement
+	Update(mat.Vector, mat.Vector, mat.Vector) (Estimate, error)
 }
 
 // Propagator propagates internal state of the system
 type Propagator interface {
 	// Propagate propagates internal state of the system to the next step
-	Propagate(mat.Matrix, mat.Matrix) (*mat.Dense, error)
+	Propagate(mat.Vector, mat.Vector) (*mat.VecDense, error)
 }
 
-// Observer observes external state of the system
+// Observer observes external state (output) of the system
 type Observer interface {
 	// Observe observes external state of the system
-	Observe(mat.Matrix, mat.Matrix) (*mat.Dense, error)
+	Observe(mat.Vector, mat.Vector) (*mat.VecDense, error)
 }
 
-// Model is a model of the system
+// Model is a model of dynamical system
 type Model interface {
 	// Propagator is system propagator
 	Propagator
@@ -32,4 +30,24 @@ type Model interface {
 	Observer
 	// Dims returns input and output dimensions of the model
 	Dims() (in int, out int)
+}
+
+// Estimate is dynamical system filter estimate
+type Estimate interface {
+	// State returns state estimate
+	State() mat.Vector
+	// Output returns output estimate
+	Output() mat.Vector
+	// Covariance returns state covariance
+	Covariance() mat.Symmetric
+}
+
+// Noise is dynamical system noise
+type Noise interface {
+	// Sample returns a sample of the noise
+	Sample() mat.Vector
+	// Cov returns noise covariance matrix
+	Cov() mat.Symmetric
+	// Reset resets noise
+	Reset() error
 }

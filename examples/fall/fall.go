@@ -237,6 +237,13 @@ func main() {
 		fmt.Printf("CORRECTED State  %d:\n%v\n", i, matrix.Format(est.State()))
 		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(est.Output()))
 		fmt.Println("----------------")
+
+		// resample every other step
+		if i%2 == 0 {
+			if err := f.Resample(0.0); err != nil {
+				log.Fatalf("Resampling failed: %v", err)
+			}
+		}
 	}
 
 	plt, err := NewSystemPlot(modelOut, measOut, filterOut)

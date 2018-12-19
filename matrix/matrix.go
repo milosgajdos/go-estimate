@@ -100,7 +100,7 @@ func Cov(m *mat.Dense, dim string) (*mat.SymDense, error) {
 }
 
 // ToSymDense converts m to SymDense (symmetric Dense matrix) if possible.
-// It returns error if the provided Dense matrix is not symmetric
+// It returns error if the provided Dense matrix is not symmetric.
 func ToSymDense(m *mat.Dense) (*mat.SymDense, error) {
 	r, c := m.Dims()
 	if r != c {
@@ -114,7 +114,7 @@ func ToSymDense(m *mat.Dense) (*mat.SymDense, error) {
 		for j := 0; j < c; j++ {
 			if i != j && !floats.EqualWithinAbsOrRel(mT.At(i, j), m.At(i, j), 1e-6, 1e-2) {
 				return nil, fmt.Errorf("Matrix not symmetric (%d, %d): %.40f != %.40f\n%v",
-					i, j, mT.At(i, j), m.At(i, j), mat.Formatted(m, mat.Prefix("")))
+					i, j, mT.At(i, j), m.At(i, j), Format(m))
 			}
 			vals[idx] = m.At(i, j)
 			idx++

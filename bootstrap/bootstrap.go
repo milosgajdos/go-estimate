@@ -13,14 +13,6 @@ import (
 	"gonum.org/v1/gonum/stat/distmv"
 )
 
-// InitCond is Bootstrap Filter initial state condition
-type InitCond struct {
-	// State is initial state
-	State *mat.VecDense
-	// Cov is initial covariance
-	Cov *mat.SymDense
-}
-
 // Bootstrap is a Bootstrap Filter (BF) aka Particle Filter
 // For more information about Bootstrap (Particle) Filter see:
 // https://en.wikipedia.org/wiki/Particle_filter
@@ -42,12 +34,12 @@ type Bootstrap struct {
 }
 
 // New creates new Bootstrap Filter with following parameters:
-// - p: number of filter particles
 // - model: system model
-// - pdf: Probability Density Function (PDF) of filter output error
-// - init: initial state condition
-// It returns error if non-positive number of particles is requested or if it fails to initialize the particles.
-func New(p int, model filter.Model, pdf distmv.LogProber, init *InitCond) (*Bootstrap, error) {
+// - init:  initial condition of the filter
+// - p:     number of filter particles
+// - pdf:   Probability Density Function (PDF) of filter output error
+// It returns error if non-positive number of particles is given or if the particles fail to be generated.
+func New(model filter.Model, init filter.InitCond, p int, pdf distmv.LogProber) (*Bootstrap, error) {
 	// must have at least one particle; can't be negative
 	if p <= 0 {
 		return nil, fmt.Errorf("Invalid particle count: %d", p)
@@ -66,17 +58,17 @@ func New(p int, model filter.Model, pdf distmv.LogProber, init *InitCond) (*Boot
 		w[i] = 1 / float64(p)
 	}
 
-	// draw particles from distribution with covariance init.Cov
-	x, err := rnd.WithCovN(init.Cov, p)
+	// draw particles from distribution with covariance init.Cov()
+	x, err := rnd.WithCovN(init.Cov(), p)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to sample filter particles: %v", err)
+		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
 	}
 
 	rows, cols := x.Dims()
-	// center particles around initial condition init.State
+	// center particles around initial condition init.State()
 	for c := 0; c < cols; c++ {
 		for r := 0; r < rows; r++ {
-			x.Set(r, c, x.At(r, c)+init.State.AtVec(r))
+			x.Set(r, c, x.At(r, c)+init.State().AtVec(r))
 		}
 	}
 
@@ -93,8 +85,8 @@ func New(p int, model filter.Model, pdf distmv.LogProber, init *InitCond) (*Boot
 	}, nil
 }
 
-// Predict predicts the next output of the system given the current state x and input u and returns it.
-// It returns error if it fails to propagate either the filter particles or input x to the next state.
+// Predict predicts the next output of the system given the state x and input u and returns it.
+// It returns error if it fails to propagate either the filter particles or x to the next state.
 func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// propagate input state to the next step
 	xNext, err := b.model.Propagate(x, u)
@@ -102,7 +94,7 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	// propagate particle filters to the next step
+	// propagate filter particles to the next step
 	for c := range b.w {
 		xPartNext, err := b.model.Propagate(b.x.ColView(c), u)
 		if err != nil {
@@ -133,7 +125,7 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	return estimate.NewBase(xNext, yNext), nil
 }
 
-// Update corrects the system state x using the measurement z given intput u and returns corrected estimate.
+// Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// get measurement dimensions
@@ -173,7 +165,7 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	}
 
 	// calculate corrected output estimate
-	output, err := b.model.Observe(state, u)
+	output, err := b.model.Observe(x, u)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to calculate output estimate: %v", err)
 	}

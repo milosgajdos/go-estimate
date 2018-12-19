@@ -17,8 +17,7 @@ type mockModel struct {
 	D *mat.Dense
 }
 
-// Propagate propagates internal state x of falling ball to the next step
-func (m *mockModel) Propagate(x, u mat.Vector) (*mat.VecDense, error) {
+func (m *mockModel) Propagate(x, u mat.Vector) (mat.Vector, error) {
 	_in, _out := m.Dims()
 	if u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
@@ -36,10 +35,10 @@ func (m *mockModel) Propagate(x, u mat.Vector) (*mat.VecDense, error) {
 
 	out.Add(out, outU)
 
-	return out.ColView(0).(*mat.VecDense), nil
+	return out.ColView(0), nil
 }
 
-func (m *mockModel) Observe(x, u mat.Vector) (*mat.VecDense, error) {
+func (m *mockModel) Observe(x, u mat.Vector) (mat.Vector, error) {
 	_in, _out := m.Dims()
 	if u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
@@ -57,7 +56,7 @@ func (m *mockModel) Observe(x, u mat.Vector) (*mat.VecDense, error) {
 
 	out.Add(out, outU)
 
-	return out.ColView(0).(*mat.VecDense), nil
+	return out.ColView(0), nil
 }
 
 func (m *mockModel) Dims() (int, int) {
@@ -69,11 +68,11 @@ func (m *mockModel) Dims() (int, int) {
 
 type invalidModel struct{}
 
-func (m *invalidModel) Propagate(x, u mat.Vector) (*mat.VecDense, error) {
+func (m *invalidModel) Propagate(x, u mat.Vector) (mat.Vector, error) {
 	return new(mat.VecDense), nil
 }
 
-func (m *invalidModel) Observe(x, u mat.Vector) (*mat.VecDense, error) {
+func (m *invalidModel) Observe(x, u mat.Vector) (mat.Vector, error) {
 	return new(mat.VecDense), nil
 }
 
@@ -81,9 +80,22 @@ func (m *invalidModel) Dims() (int, int) {
 	return -10, 8
 }
 
+type initCond struct {
+	state mat.Vector
+	cov   mat.Symmetric
+}
+
+func (c *initCond) State() mat.Vector {
+	return c.state
+}
+
+func (c *initCond) Cov() mat.Symmetric {
+	return c.cov
+}
+
 var (
 	p        int
-	initCond *InitCond
+	ic       *initCond
 	okModel  *mockModel
 	badModel *invalidModel
 	u        *mat.VecDense
@@ -100,8 +112,8 @@ func setup() {
 	u = mat.NewVecDense(1, []float64{-1.0})
 	z = mat.NewVecDense(1, []float64{-1.5})
 	// initial condition
-	state := mat.NewVecDense(2, []float64{1.0, 1.0})
-	stateCov := mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	var state mat.Vector = mat.NewVecDense(2, []float64{1.0, 1.0})
+	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{1, 0, 0, 1})
 
 	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
 	B := mat.NewDense(2, 1, []float64{0.5, 1.0})
@@ -111,9 +123,9 @@ func setup() {
 	okModel = &mockModel{A, B, C, D}
 	badModel = &invalidModel{}
 
-	initCond = &InitCond{
-		State: state,
-		Cov:   stateCov,
+	ic = &initCond{
+		state: state,
+		cov:   stateCov,
 	}
 }
 
@@ -130,15 +142,15 @@ func TestNew(t *testing.T) {
 	assert := assert.New(t)
 
 	// invalid count
-	f, err := New(-10, okModel, errPDF, initCond)
+	f, err := New(okModel, ic, -10, errPDF)
 	assert.Nil(f)
 	assert.Error(err)
 	// invalid model
-	f, err = New(p, badModel, errPDF, initCond)
+	f, err = New(badModel, ic, p, errPDF)
 	assert.Nil(f)
 	assert.Error(err)
 	// valid parameters
-	f, err = New(p, okModel, errPDF, initCond)
+	f, err = New(okModel, ic, p, errPDF)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
@@ -147,7 +159,7 @@ func TestPredict(t *testing.T) {
 	assert := assert.New(t)
 
 	// create bootstrap filter
-	f, err := New(p, okModel, errPDF, initCond)
+	f, err := New(okModel, ic, p, errPDF)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -177,7 +189,7 @@ func TestPredict(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(p, okModel, errPDF, initCond)
+	f, err := New(okModel, ic, p, errPDF)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -206,7 +218,7 @@ func TestRun(t *testing.T) {
 	data := []float64{1.0, 1.0}
 	x := mat.NewVecDense(2, data)
 
-	f, err := New(p, okModel, errPDF, initCond)
+	f, err := New(okModel, ic, p, errPDF)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -230,7 +242,7 @@ func TestResample(t *testing.T) {
 	assert := assert.New(t)
 
 	// create bootstrap filter
-	f, err := New(p, okModel, errPDF, initCond)
+	f, err := New(okModel, ic, p, errPDF)
 	assert.NotNil(f)
 	assert.NoError(err)
 

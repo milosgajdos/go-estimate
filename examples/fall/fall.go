@@ -36,7 +36,7 @@ func NewFall(A, B, C, D *mat.Dense) (*Fall, error) {
 }
 
 // Propagate propagates internal state x of falling ball to the next step
-func (b *Fall) Propagate(x, u mat.Vector) (*mat.VecDense, error) {
+func (b *Fall) Propagate(x, u mat.Vector) (mat.Vector, error) {
 	out := new(mat.Dense)
 	out.Mul(b.A, x)
 
@@ -45,11 +45,11 @@ func (b *Fall) Propagate(x, u mat.Vector) (*mat.VecDense, error) {
 
 	out.Add(out, outU)
 
-	return out.ColView(0).(*mat.VecDense), nil
+	return out.ColView(0), nil
 }
 
 // Observe observes external state of falling ball given internal state x and input u
-func (b *Fall) Observe(x, u mat.Vector) (*mat.VecDense, error) {
+func (b *Fall) Observe(x, u mat.Vector) (mat.Vector, error) {
 	out := new(mat.Dense)
 	out.Mul(b.C, x)
 
@@ -58,7 +58,7 @@ func (b *Fall) Observe(x, u mat.Vector) (*mat.VecDense, error) {
 
 	out.Add(out, outU)
 
-	return out.ColView(0).(*mat.VecDense), nil
+	return out.ColView(0), nil
 }
 
 // Dims returns input and output model dimensions
@@ -67,6 +67,19 @@ func (b *Fall) Dims() (int, int) {
 	out, _ := b.D.Dims()
 
 	return in, out
+}
+
+type initCnd struct {
+	state mat.Vector
+	cov   mat.Symmetric
+}
+
+func (c *initCnd) State() mat.Vector {
+	return c.state
+}
+
+func (c *initCnd) Cov() mat.Symmetric {
+	return c.cov
 }
 
 func NewSystemPlot(model, meas, filter *mat.Dense) (*plot.Plot, error) {
@@ -143,7 +156,7 @@ func main() {
 	}
 
 	// initial system state and control input
-	x := mat.NewVecDense(2, []float64{100.0, 0.0})
+	var x mat.Vector = mat.NewVecDense(2, []float64{100.0, 0.0})
 	u := mat.NewVecDense(1, []float64{-1.0})
 
 	// number of simulation steps
@@ -167,16 +180,16 @@ func main() {
 	filterOut := mat.NewDense(steps, 2, nil)
 
 	// initial condition
-	stateCov := mat.NewSymDense(2, []float64{1, 0, 0, 1})
-	initCond := &bootstrap.InitCond{
-		State: x,
-		Cov:   stateCov,
+	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	initCond := &initCnd{
+		state: x,
+		cov:   stateCov,
 	}
 
 	p := 100
 	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
 	// create new bootstrap filter
-	f, err := bootstrap.New(p, ball, errPDF, initCond)
+	f, err := bootstrap.New(ball, initCond, p, errPDF)
 	if err != nil {
 		log.Fatalf("Failed to create bootstrap filter: %v", err)
 	}
@@ -184,8 +197,7 @@ func main() {
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
 	// filter initial estimate
-	var est filter.Estimate
-	est = estimate.NewBase(x, nil)
+	var est filter.Estimate = estimate.NewBase(x, nil)
 
 	for i := 0; i < steps; i++ {
 		// internal state ground truth

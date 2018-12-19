@@ -13,13 +13,13 @@ type Filter interface {
 // Propagator propagates internal state of the system
 type Propagator interface {
 	// Propagate propagates internal state of the system to the next step
-	Propagate(mat.Vector, mat.Vector) (*mat.VecDense, error)
+	Propagate(mat.Vector, mat.Vector) (mat.Vector, error)
 }
 
 // Observer observes external state (output) of the system
 type Observer interface {
 	// Observe observes external state of the system
-	Observe(mat.Vector, mat.Vector) (*mat.VecDense, error)
+	Observe(mat.Vector, mat.Vector) (mat.Vector, error)
 }
 
 // Model is a model of dynamical system
@@ -30,6 +30,14 @@ type Model interface {
 	Observer
 	// Dims returns input and output dimensions of the model
 	Dims() (in int, out int)
+}
+
+// InitCond is initial state condition of the filter
+type InitCond interface {
+	// State returns initial state
+	State() mat.Vector
+	// Cov returns initial state covariance
+	Cov() mat.Symmetric
 }
 
 // Estimate is dynamical system filter estimate

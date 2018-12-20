@@ -100,9 +100,7 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
 		}
-		for r := 0; r < xPartNext.Len(); r++ {
-			b.x.Set(r, c, xPartNext.AtVec(r))
-		}
+		b.x.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
 	}
 
 	// observe system output in the next step
@@ -117,9 +115,7 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		if err != nil {
 			return nil, fmt.Errorf("Particle state observation failed: %v", err)
 		}
-		for r := 0; r < yPartNext.Len(); r++ {
-			b.y.Set(r, c, yPartNext.AtVec(r))
-		}
+		b.y.Slice(0, yPartNext.Len(), c, c+1).(*mat.Dense).Copy(yPartNext)
 	}
 
 	return estimate.NewBase(xNext, yNext), nil
@@ -210,10 +206,7 @@ func (b *Bootstrap) Resample(alpha float64) error {
 	rows, cols := x.Dims()
 	// length of inidices slice is the same as number of columns: number of particles
 	for c := range indices {
-		for r := 0; r < rows; r++ {
-			// we fix the column to particular index and set its row values
-			b.x.Set(r, c, x.At(r, indices[c]))
-		}
+		b.x.Slice(0, rows, c, c+1).(*mat.Dense).Copy(x.ColView(indices[c]))
 	}
 
 	// we have resampled particles, therefore we must reinitialize their weights, too:

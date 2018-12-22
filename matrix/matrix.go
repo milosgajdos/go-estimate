@@ -123,3 +123,20 @@ func ToSymDense(m *mat.Dense) (*mat.SymDense, error) {
 
 	return mat.NewSymDense(r, vals), nil
 }
+
+// BlockDiag accepts a slice of symmetric matrices and turn them into a block diagonal matrix and returns it
+func BlockDiag(mx []mat.Matrix) mat.Matrix {
+	blkDiag := &mat.Dense{}
+
+	for i := range mx {
+		r, c := mx[i].Dims()
+		if r == 0 || c == 0 {
+			continue
+		}
+		dR, dC := blkDiag.Dims()
+		blkDiag = blkDiag.Grow(r, c).(*mat.Dense)
+		blkDiag.Slice(dR, dR+r, dC, dC+c).(*mat.Dense).Copy(mx[i])
+	}
+
+	return blkDiag
+}

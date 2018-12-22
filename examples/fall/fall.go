@@ -69,6 +69,16 @@ func (b *Fall) Dims() (int, int) {
 	return in, out
 }
 
+// StateNoise returns state noise
+func (b *Fall) StateNoise() filter.Noise {
+	return nil
+}
+
+// OutputNoise returns output noise
+func (b *Fall) OutputNoise() filter.Noise {
+	return nil
+}
+
 type initCnd struct {
 	state mat.Vector
 	cov   mat.Symmetric

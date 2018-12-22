@@ -124,3 +124,30 @@ func TestToSymDense(t *testing.T) {
 	assert.NotNil(sym)
 	assert.NoError(err)
 }
+
+func TestBlockDiag(t *testing.T) {
+	assert := assert.New(t)
+
+	xVec := mat.NewVecDense(3, []float64{1.0, 2.0, 3.0})
+	yMat := mat.NewDense(2, 2, []float64{4.0, 5.0, 6.0, 7.0})
+	exp := mat.NewDense(5, 3, []float64{
+		1.0, 0.0, 0.0,
+		2.0, 0.0, 0.0,
+		3.0, 0.0, 0.0,
+		0.0, 4.0, 5.0,
+		0.0, 6.0, 7.0})
+
+	mx := make([]mat.Matrix, 3)
+	mx[0] = xVec
+	mx[1] = &mat.Dense{}
+	mx[2] = yMat
+
+	blkDiag := BlockDiag(mx)
+
+	r, c := blkDiag.Dims()
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			assert.InDelta(exp.At(i, j), blkDiag.At(i, j), 0.001)
+		}
+	}
+}

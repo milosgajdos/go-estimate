@@ -36,13 +36,13 @@ type Bootstrap struct {
 // New creates new Bootstrap Filter with following parameters:
 // - model: system model
 // - init:  initial condition of the filter
-// - p:     number of filter particles
+// - particles:  number of filter particles
 // - pdf:   Probability Density Function (PDF) of filter output error
 // It returns error if non-positive number of particles is given or if the particles fail to be generated.
-func New(model filter.Model, init filter.InitCond, p int, pdf distmv.LogProber) (*Bootstrap, error) {
+func New(model filter.Model, init filter.InitCond, particles int, pdf distmv.LogProber) (*Bootstrap, error) {
 	// must have at least one particle; can't be negative
-	if p <= 0 {
-		return nil, fmt.Errorf("Invalid particle count: %d", p)
+	if particles <= 0 {
+		return nil, fmt.Errorf("Invalid particle count: %d", particles)
 	}
 
 	// size of input and output vectors
@@ -53,13 +53,13 @@ func New(model filter.Model, init filter.InitCond, p int, pdf distmv.LogProber) 
 
 	// Initialize particle weights to equal probabilities:
 	// particle weights must sum up to 1 to represent probability
-	w := make([]float64, p)
+	w := make([]float64, particles)
 	for i := range w {
-		w[i] = 1 / float64(p)
+		w[i] = 1 / float64(particles)
 	}
 
 	// draw particles from distribution with covariance init.Cov()
-	x, err := rnd.WithCovN(init.Cov(), p)
+	x, err := rnd.WithCovN(init.Cov(), particles)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
 	}
@@ -72,7 +72,7 @@ func New(model filter.Model, init filter.InitCond, p int, pdf distmv.LogProber) 
 		}
 	}
 
-	y := mat.NewDense(out, p, nil)
+	y := mat.NewDense(out, particles, nil)
 	diff := make([]float64, out)
 
 	return &Bootstrap{

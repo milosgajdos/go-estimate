@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	filter "github.com/milosgajdos83/go-filter"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
@@ -15,6 +16,8 @@ type mockModel struct {
 	B *mat.Dense
 	C *mat.Dense
 	D *mat.Dense
+	Q filter.Noise
+	R filter.Noise
 }
 
 func (m *mockModel) Propagate(x, u mat.Vector) (mat.Vector, error) {
@@ -34,6 +37,10 @@ func (m *mockModel) Propagate(x, u mat.Vector) (mat.Vector, error) {
 	outU.Mul(m.B, u)
 
 	out.Add(out, outU)
+
+	if m.Q != nil {
+		out.Add(out, m.Q.Sample())
+	}
 
 	return out.ColView(0), nil
 }
@@ -56,6 +63,10 @@ func (m *mockModel) Observe(x, u mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
+	if m.R != nil {
+		out.Add(out, m.R.Sample())
+	}
+
 	return out.ColView(0), nil
 }
 
@@ -64,6 +75,14 @@ func (m *mockModel) Dims() (int, int) {
 	out, _ := m.D.Dims()
 
 	return in, out
+}
+
+func (m *mockModel) StateNoise() filter.Noise {
+	return m.Q
+}
+
+func (m *mockModel) OutputNoise() filter.Noise {
+	return m.R
 }
 
 type invalidModel struct{}
@@ -78,6 +97,14 @@ func (m *invalidModel) Observe(x, u mat.Vector) (mat.Vector, error) {
 
 func (m *invalidModel) Dims() (int, int) {
 	return -10, 8
+}
+
+func (m *invalidModel) StateNoise() filter.Noise {
+	return nil
+}
+
+func (m *invalidModel) OutputNoise() filter.Noise {
+	return nil
 }
 
 type initCond struct {
@@ -120,7 +147,7 @@ func setup() {
 	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
 	D := mat.NewDense(1, 1, []float64{0.0})
 
-	okModel = &mockModel{A, B, C, D}
+	okModel = &mockModel{A, B, C, D, nil, nil}
 	badModel = &invalidModel{}
 
 	ic = &initCond{

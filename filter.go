@@ -30,6 +30,10 @@ type Model interface {
 	Observer
 	// Dims returns input and output dimensions of the model
 	Dims() (in int, out int)
+	// StateNoise returns state noise
+	StateNoise() Noise
+	// OutputNoise returns output noise
+	OutputNoise() Noise
 }
 
 // InitCond is initial state condition of the filter

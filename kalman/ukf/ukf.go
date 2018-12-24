@@ -300,7 +300,70 @@ func (k *UKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
-	return nil, nil
+	in, out := k.model.Dims()
+	pxy := mat.NewDense(in, out, nil)
+	pyy := mat.NewDense(out, out, nil)
+
+	covxy := mat.NewDense(in, out, nil)
+	covyy := mat.NewDense(out, out, nil)
+
+	sigmaVec := mat.NewVecDense(in, nil)
+	sigmaOutVec := mat.NewVecDense(out, nil)
+
+	_, cols := k.x.Dims()
+	for c := 0; c < cols; c++ {
+		sigmaVec = k.xpred.ColView(c).(*mat.VecDense)
+		sigmaVec.SubVec(sigmaVec, k.xmpred)
+
+		sigmaOutVec = k.ypred.ColView(c).(*mat.VecDense)
+		sigmaOutVec.SubVec(sigmaOutVec, k.ympred)
+
+		covxy.Mul(sigmaVec, sigmaOutVec.T())
+		covyy.Mul(sigmaOutVec, sigmaOutVec.T())
+
+		if c == 0 {
+			covxy.Scale(k.Wc0, covxy)
+			covyy.Scale(k.Wc0, covyy)
+		} else {
+			covxy.Scale(k.W, covxy)
+			covyy.Scale(k.W, covyy)
+		}
+
+		pxy.Add(pxy, covxy)
+		pyy.Add(pyy, covyy)
+	}
+
+	pyyInv := &mat.Dense{}
+	pyyInv.Inverse(pyy)
+	gain := &mat.Dense{}
+	gain.Mul(pxy, pyyInv)
+
+	inn := &mat.VecDense{}
+	inn.SubVec(z, k.ympred)
+
+	corr := &mat.Dense{}
+	corr.Mul(gain, inn)
+	x.(*mat.VecDense).AddVec(x, corr.ColView(0))
+
+	pCorr := &mat.Dense{}
+	pCorr.Mul(pyy, gain.T())
+	pCorr.Mul(pCorr, gain)
+	pCorr.Sub(k.p, pCorr)
+
+	for i := 0; i < in; i++ {
+		for j := i; j < in; j++ {
+			k.p.SetSym(i, j, pCorr.At(i, j))
+		}
+	}
+
+	k.inn.CopyVec(inn)
+
+	output, err := k.model.Observe(x, u)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to calculate output estimate: %v", err)
+	}
+
+	return estimate.NewBaseWithCov(x, output, nil)
 }
 
 // Run runs one step of UKF for given state x, input u and measurement z.

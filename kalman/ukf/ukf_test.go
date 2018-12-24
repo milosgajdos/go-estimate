@@ -2,6 +2,7 @@ package ukf
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	filter "github.com/milosgajdos83/go-filter"
@@ -120,6 +121,7 @@ func (c *initCond) Cov() mat.Symmetric {
 }
 
 var (
+	c        *Config
 	ic       *initCond
 	okModel  *mockModel
 	badModel *invalidModel
@@ -149,12 +151,71 @@ func setup() {
 	okModel = &mockModel{A, B, C, D, Q, R}
 	badModel = &invalidModel{}
 
+	c = &Config{
+		Alpha: 0.75,
+		Beta:  2.0,
+		Kappa: 3.0,
+	}
+
 	ic = &initCond{
 		state: state,
 		cov:   stateCov,
 	}
 }
 
+func TestMain(m *testing.M) {
+	// set up tests
+	setup()
+	// run the tests
+	retCode := m.Run()
+	// call with result of m.Run()
+	os.Exit(retCode)
+}
+
 func TestNew(t *testing.T) {
-	assert.New(t)
+	assert := assert.New(t)
+
+	// invalid model
+	f, err := New(badModel, ic, c)
+	assert.Nil(f)
+	assert.Error(err)
+	// invalid config
+	_alpha := c.Alpha
+	c.Alpha = -10.0
+	f, err = New(okModel, ic, c)
+	assert.Nil(f)
+	assert.Error(err)
+	c.Alpha = _alpha
+	// valid parameters
+	f, err = New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+}
+
+func TestCovariance(t *testing.T) {
+	assert := assert.New(t)
+
+	// valid parameters
+	f, err := New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	cov := f.Covariance()
+	assert.NotNil(cov)
+}
+
+func TestGain(t *testing.T) {
+	assert := assert.New(t)
+
+	// valid parameters
+	f, err := New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	gain := f.Gain()
+	assert.NotNil(gain)
+}
+
+func TestPredict(t *testing.T) {
+	//assert := assert.New(t)
 }

@@ -207,7 +207,11 @@ func main() {
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
 	// filter initial estimate
-	var est filter.Estimate = estimate.NewBase(x, nil)
+	var est filter.Estimate
+	est, err = estimate.NewBase(x, nil)
+	if err != nil {
+		log.Fatalf("Failed to create initial estimate: %v", err)
+	}
 
 	for i := 0; i < steps; i++ {
 		// internal state ground truth

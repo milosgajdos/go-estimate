@@ -94,35 +94,41 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	// propagate filter particles to the next step
-	for c := range b.w {
-		xPartNext, err := b.model.Propagate(b.x.ColView(c), u)
-		if err != nil {
-			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
-		}
-		b.x.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
-	}
-
 	// observe system output in the next step
 	yNext, err := b.model.Observe(xNext, u)
 	if err != nil {
 		return nil, fmt.Errorf("System state observation failed: %v", err)
 	}
 
-	// observe particle output in the next step
+	// TODO: Get rid of these allocations; maybe preallocate xpred and ypred
+	r, c := b.x.Dims()
+	xpred := mat.NewDense(r, c, nil)
+	r, c = b.y.Dims()
+	ypred := mat.NewDense(r, c, nil)
+	// propagate filter particles to the next step and observe output
 	for c := range b.w {
-		yPartNext, err := b.model.Observe(b.x.ColView(c), u)
+		xPartNext, err := b.model.Propagate(b.x.ColView(c), u)
+		if err != nil {
+			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
+		}
+		xpred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
+
+		yPartNext, err := b.model.Observe(xPartNext, u)
 		if err != nil {
 			return nil, fmt.Errorf("Particle state observation failed: %v", err)
 		}
-		b.y.Slice(0, yPartNext.Len(), c, c+1).(*mat.Dense).Copy(yPartNext)
+		ypred.Slice(0, yPartNext.Len(), c, c+1).(*mat.Dense).Copy(yPartNext)
 	}
 
-	return estimate.NewBase(xNext, yNext), nil
+	// update filter particles and their observed outputs
+	b.x.Copy(xpred)
+	b.y.Copy(ypred)
+
+	return estimate.NewBase(xNext, yNext)
 }
 
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
-// It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
+// It returns error if it fails to calculate system output estimate.
 func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// get measurement dimensions
 	zRows := z.Len()
@@ -143,12 +149,6 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// normalize the particle weights so they express probability
 	floats.Scale(1/floats.Sum(b.w), b.w)
 
-	// attempt to convert x to *mat.VecDense
-	state, ok := x.(*mat.VecDense)
-	if !ok {
-		return nil, fmt.Errorf("Invalid state supplied: %v", x)
-	}
-
 	pRows, _ := b.x.Dims()
 	wavg := 0.0
 	// update/correct particles estimates to weighted average
@@ -156,7 +156,7 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		for c := range b.w {
 			wavg += b.w[c] * b.x.At(r, c)
 		}
-		state.SetVec(r, wavg)
+		x.(*mat.VecDense).SetVec(r, wavg)
 		wavg = 0.0
 	}
 
@@ -166,12 +166,12 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("Unable to calculate output estimate: %v", err)
 	}
 
-	return estimate.NewBase(state, output), nil
+	return estimate.NewBase(x, output)
 }
 
 // Run runs one step of Bootstrap Filter for given state x, input u and measurement z.
 // It corrects system state x using measurement z and returns new system estimate.
-// It returns error if it fails to either propagate or correct state x.
+// It returns error if it either fails to propagate or correct state x or its particles.
 func (b *Bootstrap) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 	// predict the next output state
 	pred, err := b.Predict(x, u)

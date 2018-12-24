@@ -220,15 +220,9 @@ func TestUpdate(t *testing.T) {
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	var _x mat.Vector
-	// _x is not VecDense
-	est, err := f.Update(_x, u, z)
-	assert.Nil(est)
-	assert.Error(err)
-
 	// incorrect state dimensions
-	_x = mat.NewVecDense(3, nil)
-	est, err = f.Update(_x, u, z)
+	_x := mat.NewVecDense(3, nil)
+	est, err := f.Update(_x, u, z)
 	assert.Nil(est)
 	assert.Error(err)
 

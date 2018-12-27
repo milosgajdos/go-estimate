@@ -60,6 +60,8 @@ type Noise interface {
 	Sample() mat.Vector
 	// Cov returns noise covariance matrix
 	Cov() mat.Symmetric
+	// Mean returns noise mean
+	Mean() []float64
 	// Reset resets noise
-	Reset() error
+	Reset()
 }

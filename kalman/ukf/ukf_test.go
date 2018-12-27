@@ -38,7 +38,7 @@ func (m *mockModel) Propagate(x, u mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if m.Q != nil {
+	if !m.Q.Cov().(*mat.SymDense).IsZero() {
 		out.Add(out, m.Q.Sample())
 	}
 
@@ -63,7 +63,7 @@ func (m *mockModel) Observe(x, u mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if m.R != nil {
+	if !m.R.Cov().(*mat.SymDense).IsZero() {
 		out.Add(out, m.R.Sample())
 	}
 
@@ -107,6 +107,13 @@ func (m *invalidModel) OutputNoise() filter.Noise {
 	return nil
 }
 
+type mockNilNoise struct{}
+
+func (m *mockNilNoise) Sample() mat.Vector { return new(mat.VecDense) }
+func (m *mockNilNoise) Cov() mat.Symmetric { return new(mat.SymDense) }
+func (m *mockNilNoise) Mean() []float64    { return nil }
+func (m *mockNilNoise) Reset()             {}
+
 type initCond struct {
 	state mat.Vector
 	cov   mat.Symmetric
@@ -135,8 +142,8 @@ func setup() {
 	u = mat.NewVecDense(1, []float64{-1.0})
 	z = mat.NewVecDense(1, []float64{-1.5})
 	// initial condition
-	var state mat.Vector = mat.NewVecDense(2, []float64{1.0, 1.0})
-	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	var state mat.Vector = mat.NewVecDense(2, []float64{1.0, 3.0})
+	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
 	sNoise, _ = noise.NewGaussian([]float64{0, 0}, stateCov)
 	var outCov mat.Symmetric = mat.NewSymDense(1, []float64{0.25})
 	oNoise, _ = noise.NewGaussian([]float64{0}, outCov)
@@ -175,10 +182,15 @@ func TestMain(m *testing.M) {
 func TestNew(t *testing.T) {
 	assert := assert.New(t)
 
-	// invalid model
-	f, err := New(badModel, ic, c)
+	f, err := New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	// invalid model: incorrect dimensions
+	f, err = New(badModel, ic, c)
 	assert.Nil(f)
 	assert.Error(err)
+
 	// invalid config
 	_alpha := c.Alpha
 	c.Alpha = -10.0
@@ -186,8 +198,59 @@ func TestNew(t *testing.T) {
 	assert.Nil(f)
 	assert.Error(err)
 	c.Alpha = _alpha
-	// valid parameters
+
+	// zero state and output noise
+	_Q, _R := okModel.StateNoise(), okModel.OutputNoise()
+	okModel.Q, okModel.R = &mockNilNoise{}, &mockNilNoise{}
 	f, err = New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+	okModel.Q, okModel.R = _Q, _R
+}
+
+func TestGenSigmaPoints(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	x := mat.VecDenseCopyOf(ic.state)
+	sp, err := f.GenSigmaPoints(x)
+	assert.NotNil(sp)
+	assert.NoError(err)
+}
+
+func TestPredict(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	x := mat.VecDenseCopyOf(ic.state)
+	est, err := f.Predict(x, u)
+	assert.NotNil(est)
+	assert.NoError(err)
+
+	// make invalid input vector
+	_u := mat.NewVecDense(3, nil)
+	est, err = f.Predict(x, _u)
+	assert.Nil(est)
+	assert.Error(err)
+
+	// sigma point propagation error
+	_x := mat.NewDense(5, 2, nil)
+	sp := &SigmaPoints{X: _x}
+	spp, err := f.propagateSigmaPoints(sp, _u)
+	assert.Nil(spp)
+	assert.Error(err)
+}
+
+func TestUpdate(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, c)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
@@ -195,7 +258,6 @@ func TestNew(t *testing.T) {
 func TestCovariance(t *testing.T) {
 	assert := assert.New(t)
 
-	// valid parameters
 	f, err := New(okModel, ic, c)
 	assert.NotNil(f)
 	assert.NoError(err)
@@ -207,15 +269,10 @@ func TestCovariance(t *testing.T) {
 func TestGain(t *testing.T) {
 	assert := assert.New(t)
 
-	// valid parameters
 	f, err := New(okModel, ic, c)
 	assert.NotNil(f)
 	assert.NoError(err)
 
 	gain := f.Gain()
 	assert.NotNil(gain)
-}
-
-func TestPredict(t *testing.T) {
-	//assert := assert.New(t)
 }

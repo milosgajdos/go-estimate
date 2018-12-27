@@ -9,6 +9,22 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// SigmaPoints stores sigma points and covariance
+type SigmaPoints struct {
+	// X stores sigma point vectors in columns
+	X *mat.Dense
+	// Cov contains sigma points covariance
+	Cov *mat.SymDense
+}
+
+// sigmaPointsPred stores sigma points predicted values
+type sigmaPointsPred struct {
+	x     *mat.Dense
+	xMean *mat.VecDense
+	y     *mat.Dense
+	yMean *mat.VecDense
+}
+
 // Config contains UKF [unitless] configuration parameters
 type Config struct {
 	// Alpha is alpha parameter (0,1]
@@ -31,24 +47,14 @@ type UKF struct {
 	Wc0 float64
 	// Wsp is weight for regular sigma points and covariances
 	W float64
-	// xmpred is predicted mean sigma point
-	xmpred *mat.VecDense
-	// ympred is predicted mean sigma point output
-	ympred *mat.VecDense
-	// xpred is a matrix which stores regular sigma points predicted states
-	xpred *mat.Dense
-	// x is a matrix which stores regular sigma points states
-	x *mat.Dense
-	// ypred is a matrix which stores regular sigma points predicted outputs
-	ypred *mat.Dense
-	// y is a matrix which stores regular sigma points outputs
-	y *mat.Dense
-	// ps is the covariance matrix of sigma points
-	ps *mat.SymDense
-	// ppred is predicted UKF covariance matrix
-	ppred *mat.SymDense
+	// s stores UKF sigma points
+	s *SigmaPoints
+	// spred stores sigma points predictions
+	spred *sigmaPointsPred
 	// p is the UKF covariance matrix
 	p *mat.SymDense
+	// ppred is the UKF predicted covariance matrix
+	ppred *mat.SymDense
 	// inn is innovation vector
 	inn *mat.VecDense
 	// k is Kalman gain
@@ -56,8 +62,8 @@ type UKF struct {
 }
 
 // New creates new UKF and returns it.
-// It accepts following arguments:
-// - model:  dynamical system model
+// It accepts the following arguments:
+// - model:  dynamical system filter model
 // - init:   initial condition of the filter
 // - c:      filter configuration
 // It returns error if non-positive number of sigma points is given or if the sigma points fail to be generated.
@@ -73,56 +79,83 @@ func New(model filter.Model, init filter.InitCond, c *Config) (*UKF, error) {
 		return nil, fmt.Errorf("Invalid config supplied: %v", c)
 	}
 
-	// sigmaDim stores dimension of sigma point
-	sigmaDim := init.State().Len()
+	// sigma point dimension (length of sigma point vector)
+	spDim := init.State().Len()
 
-	rows, _ := model.StateNoise().Cov().Dims()
-	sigmaDim += rows
+	if !model.StateNoise().Cov().(*mat.SymDense).IsZero() {
+		spDim += model.StateNoise().Cov().Symmetric()
+	}
 
-	rows, _ = model.OutputNoise().Cov().Dims()
-	sigmaDim += rows
+	if !model.OutputNoise().Cov().(*mat.SymDense).IsZero() {
+		spDim += model.OutputNoise().Cov().Symmetric()
+	}
+	//fmt.Println("spDim", spDim)
 
 	// lambda is another unitless UKF parameter - calculates using the config ones
-	lambda := c.Alpha*c.Alpha*(float64(sigmaDim)+c.Kappa) - float64(sigmaDim)
+	lambda := c.Alpha*c.Alpha*(float64(spDim)+c.Kappa) - float64(spDim)
+	//fmt.Println("lambda:", lambda)
 
 	// gamma is the square root Sigma Point covariance scaling factor
-	gamma := math.Sqrt(float64(sigmaDim) + lambda)
+	gamma := math.Sqrt(float64(spDim) + lambda)
+	//fmt.Println("gamma:", gamma)
 
 	// weight of the mean sigma point
-	Wm0 := lambda / (float64(sigmaDim) + lambda)
+	Wm0 := lambda / (float64(spDim) + lambda)
+	//fmt.Println("Wm0:", Wm0)
 	// weight of the mean sigma point covariance
 	Wc0 := Wm0 + (1 - c.Alpha*c.Alpha + c.Beta)
+	//fmt.Println("Wc0:", Wc0)
 	// weight of the rest of sigma points and covariance
-	W := 1 / (2 * (float64(sigmaDim) + lambda))
+	W := 1 / (2 * (float64(spDim) + lambda))
+	//fmt.Println("W:", W)
 
-	// expected predicted state and output aka. mean sigma points
-	xmpred := mat.NewVecDense(in, nil)
-	ympred := mat.NewVecDense(out, nil)
+	// sigma points matrix: stores sigma points in its columns
+	x := mat.NewDense(spDim, 2*spDim+1, nil)
+
+	// sigma points covariance matrix: this is a block diagonal matrix
+	cov := mat.NewSymDense(spDim, nil)
+
+	r := init.Cov().Symmetric()
+	s := model.StateNoise().Cov().Symmetric()
+	o := model.OutputNoise().Cov().Symmetric()
+
+	// copy the covariance matrices into sigma point covariance
+	cov.SliceSquare(0, r).(*mat.SymDense).CopySym(init.Cov())
+
+	if !model.StateNoise().Cov().(*mat.SymDense).IsZero() {
+		cov.SliceSquare(r, r+s).(*mat.SymDense).CopySym(model.StateNoise().Cov())
+	}
+
+	if !model.OutputNoise().Cov().(*mat.SymDense).IsZero() {
+		cov.SliceSquare(r+s, r+s+o).(*mat.SymDense).CopySym(model.OutputNoise().Cov())
+	}
+
+	sp := &SigmaPoints{
+		X:   x,
+		Cov: cov,
+	}
 
 	// sigma points prediction matrix; stores only system sigma points vectors
-	xpred := mat.NewDense(in, 2*sigmaDim+1, nil)
-	// sigma points matrix: stores sigma points in its columns
-	x := mat.NewDense(sigmaDim, 2*sigmaDim+1, nil)
+	points := mat.NewDense(in, 2*spDim, nil)
+	// expected predicted sigma point state
+	xMean := mat.NewVecDense(in, nil)
 
 	// sigma point outputs; stores inly system sigma points outputs
-	ypred := mat.NewDense(out, 2*sigmaDim+1, nil)
-	// sigma point outputs
-	y := mat.NewDense(2*sigmaDim+1, out, nil)
+	outputs := mat.NewDense(out, 2*spDim, nil)
+	// expected predicted sigma point output
+	yMean := mat.NewVecDense(out, nil)
 
-	// sigma points covariance matrix; this is a block diagonal matrix
-	ps := mat.NewSymDense(sigmaDim, nil)
-	// copy the covariance matrices into sigma point covariance
-	r, _ := init.Cov().Dims()
-	s, _ := model.StateNoise().Cov().Dims()
-	o, _ := model.OutputNoise().Cov().Dims()
-
-	ps.SliceSquare(0, r).(*mat.SymDense).CopySym(init.Cov())
-	ps.SliceSquare(r, r+s).(*mat.SymDense).CopySym(model.StateNoise().Cov())
-	ps.SliceSquare(r+s, r+s+o).(*mat.SymDense).CopySym(model.OutputNoise().Cov())
+	pred := &sigmaPointsPred{
+		x:     points,
+		xMean: xMean,
+		y:     outputs,
+		yMean: yMean,
+	}
 
 	// predicted covariance; this covariance will be corrected in Update
 	ppred := mat.NewSymDense(init.Cov().Symmetric(), nil)
 	ppred.CopySym(init.Cov())
+
 	// corrected matrix starts the same as p_
 	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
 	p.CopySym(init.Cov())
@@ -134,48 +167,53 @@ func New(model filter.Model, init filter.InitCond, c *Config) (*UKF, error) {
 	k := mat.NewDense(in, out, nil)
 
 	return &UKF{
-		model:  model,
-		gamma:  gamma,
-		Wm0:    Wm0,
-		Wc0:    Wc0,
-		W:      W,
-		xmpred: xmpred,
-		ympred: ympred,
-		xpred:  xpred,
-		x:      x,
-		ypred:  ypred,
-		y:      y,
-		ps:     ps,
-		ppred:  ppred,
-		p:      p,
-		inn:    inn,
-		k:      k,
+		model: model,
+		gamma: gamma,
+		Wm0:   Wm0,
+		Wc0:   Wc0,
+		W:     W,
+		s:     sp,
+		spred: pred,
+		p:     p,
+		ppred: ppred,
+		inn:   inn,
+		k:     k,
 	}, nil
 }
 
-// genSigmaPoints generates new UKF sigma points around state x
-func (k *UKF) genSigmaPoints(x mat.Vector) error {
-	rows, cols := k.x.Dims()
-	// first column contains mean sigma point
-	k.x.Slice(0, x.Len(), 0, 1).(*mat.Dense).Copy(x)
-	for i := x.Len(); i < rows; i++ {
-		k.x.Set(i, 0, 0.0)
+// GenSigmaPoints generates new UKF sigma points and their covariance and returns them.
+// It returns error if it fails to generate new sigma points.
+func (k *UKF) GenSigmaPoints(x mat.Vector) (*SigmaPoints, error) {
+	rows, cols := k.s.X.Dims()
+	sp := mat.NewDense(rows, cols, nil)
+
+	n := k.s.Cov.Symmetric()
+	spCov := mat.NewSymDense(n, nil)
+
+	//fmt.Println("N:", n)
+
+	//fmt.Println(matrix.Format(k.p))
+
+	p := k.p.Symmetric()
+	s := k.model.StateNoise().Cov().Symmetric()
+	o := k.model.OutputNoise().Cov().Symmetric()
+
+	//fmt.Println("p+s+o:", p+s+o)
+
+	spCov.SliceSquare(0, p).(*mat.SymDense).CopySym(k.p)
+	if !k.model.StateNoise().Cov().(*mat.SymDense).IsZero() {
+		spCov.SliceSquare(p, p+s).(*mat.SymDense).CopySym(k.model.StateNoise().Cov())
+	}
+	if !k.model.OutputNoise().Cov().(*mat.SymDense).IsZero() {
+		spCov.SliceSquare(p+s, p+s+o).(*mat.SymDense).CopySym(k.model.OutputNoise().Cov())
 	}
 
-	// sigma point covariance computation
-	// k.p holds current UKF covariance
-	r, _ := k.p.Dims()
-	s, _ := k.model.StateNoise().Cov().Dims()
-	o, _ := k.model.OutputNoise().Cov().Dims()
-
-	k.ps.SliceSquare(0, r).(*mat.SymDense).CopySym(k.p)
-	k.ps.SliceSquare(r, r+s).(*mat.SymDense).CopySym(k.model.StateNoise().Cov())
-	k.ps.SliceSquare(r+s, r+s+o).(*mat.SymDense).CopySym(k.model.OutputNoise().Cov())
+	//fmt.Println(matrix.Format(spCov))
 
 	var svd mat.SVD
-	ok := svd.Factorize(k.ps, mat.SVDFull)
+	ok := svd.Factorize(spCov, mat.SVDFull)
 	if !ok {
-		return fmt.Errorf("SVD factorization failed")
+		return nil, fmt.Errorf("SVD factorization failed")
 	}
 	SqrtCov := new(mat.Dense)
 	svd.UTo(SqrtCov)
@@ -184,84 +222,97 @@ func (k *UKF) genSigmaPoints(x mat.Vector) error {
 		vals[i] = math.Sqrt(vals[i])
 	}
 	diag := mat.NewDiagonal(len(vals), vals)
+	//fmt.Println(matrix.Format(diag))
+
 	SqrtCov.Mul(SqrtCov, diag)
 	SqrtCov.Scale(k.gamma, SqrtCov)
+
+	//fmt.Println(matrix.Format(SqrtCov))
 
 	r, c := SqrtCov.Dims()
 	// copy SqrtCov values into sigma points covariance matrix
 	for i := 0; i < r; i++ {
 		for j := 0; j < c; j++ {
-			k.ps.SetSym(i, j, SqrtCov.At(i, j))
+			spCov.SetSym(i, j, SqrtCov.At(i, j))
 		}
 	}
 
-	// we center the sigmapoints around the mean sigma point stored in 1st column
-	for j := 1; j < cols; j++ {
-		k.x.Slice(0, rows, j, j+1).(*mat.Dense).Copy(k.x.ColView(0))
-	}
-	// positive sigma points
-	sigmas := k.x.Slice(0, r, 1, 1+(c/2)).(*mat.Dense)
-	sigmas.Add(sigmas, k.ps)
-	// negative sigma points
-	sigmas = k.x.Slice(0, r, 1+(c/2), c+1).(*mat.Dense)
-	sigmas.Sub(sigmas, k.ps)
+	//fmt.Println(matrix.Format(spCov))
 
-	return nil
+	//fmt.Println(matrix.Format(x))
+	// we center the sigmapoints around the mean sigma point stored in 1st column
+	for j := 0; j < cols; j++ {
+		sp.Slice(0, rows, j, j+1).(*mat.Dense).Copy(x)
+	}
+	//fmt.Println(matrix.Format(sp))
+	// positive sigma points
+	sx := sp.Slice(0, rows, 1, 1+((cols-1)/2)).(*mat.Dense)
+	sx.Add(sx, spCov)
+	// negative sigma points
+	sx = sp.Slice(0, rows, 1+((cols-1)/2), cols).(*mat.Dense)
+	sx.Sub(sx, spCov)
+
+	//fmt.Println(matrix.Format(sp))
+
+	return &SigmaPoints{
+		X:   sp,
+		Cov: spCov,
+	}, nil
 }
 
-// predictSigmaPoints propagates sigma points to the next step and observes their output.
+// propagateSigmaPoints propagates sigma points to the next step and observes their output.
 // It calculates mean predicted sigma point state and returns it with predicted sigma points states.
 // It returns error if it fails to propagate the sigma points or observe their outputs.
-func (k *UKF) predictSigmaPoints(x, u mat.Vector) (*mat.Dense, *mat.VecDense, error) {
-	_, cols := k.x.Dims()
-	xrows, _ := k.xpred.Dims()
-	yrows, _ := k.ypred.Dims()
+func (k *UKF) propagateSigmaPoints(sp *SigmaPoints, u mat.Vector) (*sigmaPointsPred, error) {
+	in, _ := k.model.Dims()
+	_, cols := k.s.X.Dims()
+	xrows, _ := k.spred.x.Dims()
+	yrows, _ := k.spred.y.Dims()
 
 	// sigmaPred and sigmaOutPred store predicted sigma point states and outputs
-	sigmaPred := mat.NewDense(xrows, cols, nil)
-	sigmaOutPred := mat.NewDense(yrows, cols, nil)
+	next := mat.NewDense(xrows, cols, nil)
+	out := mat.NewDense(yrows, cols, nil)
 
 	// xmPred and ymPred store predicted mean sigma point and output
-	xmPred := mat.NewVecDense(xrows, nil)
-	ymPred := mat.NewVecDense(yrows, nil)
+	xMean := mat.NewVecDense(xrows, nil)
+	yMean := mat.NewVecDense(yrows, nil)
 
 	// propagate all sigma points and observe their output
 	for c := 0; c < cols; c++ {
-		sigmaNext, err := k.model.Propagate(k.x.ColView(c).(*mat.VecDense).SliceVec(0, x.Len()), u)
+		sigmaNext, err := k.model.Propagate(sp.X.ColView(c).(*mat.VecDense).SliceVec(0, in), u)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to propagage sigma point: %v", err)
+			return nil, fmt.Errorf("Failed to propagate sigma point: %v", err)
 		}
-		sigmaPred.Slice(0, sigmaNext.Len(), c, c+1).(*mat.Dense).Copy(sigmaNext)
+		next.Slice(0, sigmaNext.Len(), c, c+1).(*mat.Dense).Copy(sigmaNext)
 
-		sigmaOutNext, err := k.model.Observe(sigmaNext, u)
+		sigmaOut, err := k.model.Observe(sigmaNext, u)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to observe sigma point output: %v", err)
+			return nil, fmt.Errorf("Failed to observe sigma point output: %v", err)
 		}
-		sigmaOutPred.Slice(0, sigmaOutNext.Len(), c, c+1).(*mat.Dense).Copy(sigmaOutNext)
+		out.Slice(0, sigmaOut.Len(), c, c+1).(*mat.Dense).Copy(sigmaOut)
 
 		if c == 0 {
-			xmPred.AddScaledVec(xmPred, k.Wm0, sigmaNext)
-			ymPred.AddScaledVec(ymPred, k.Wm0, sigmaNext)
+			xMean.AddScaledVec(xMean, k.Wm0, sigmaNext)
+			yMean.AddScaledVec(yMean, k.Wm0, sigmaOut)
 		} else {
-			xmPred.AddScaledVec(xmPred, k.W, sigmaNext)
-			ymPred.AddScaledVec(ymPred, k.W, sigmaOutNext)
+			xMean.AddScaledVec(xMean, k.W, sigmaNext)
+			yMean.AddScaledVec(yMean, k.W, sigmaOut)
 		}
 	}
 
-	// copy all predicted values to UKF
-	k.xmpred.CopyVec(xmPred)
-	k.ympred.CopyVec(ymPred)
-	k.xpred.Copy(sigmaPred)
-	k.ypred.Copy(sigmaOutPred)
-
-	return sigmaPred, xmPred, nil
+	return &sigmaPointsPred{
+		x:     next,
+		xMean: xMean,
+		y:     out,
+		yMean: yMean,
+	}, nil
 }
 
-// predictCovariance predicts sigma point UKF covariance and returns it.
+// predictCovariance predicts UKF covariance and returns it.
 // It returns error if it fails to calculate predicted covariance from predicted sigma points.
-func (k *UKF) predictCovariance(sigmaPred *mat.Dense, sigmaMeanPred *mat.VecDense) (*mat.SymDense, error) {
-	_, cols := k.x.Dims()
-	xrows, _ := k.xpred.Dims()
+func (k *UKF) predictCovariance(sigmaPred *mat.Dense, sigmaPredMean *mat.VecDense) (*mat.SymDense, error) {
+	_, cols := k.s.X.Dims()
+	xrows, _ := k.spred.x.Dims()
 
 	// predict covariance
 	ppred := mat.NewSymDense(xrows, nil)
@@ -270,7 +321,7 @@ func (k *UKF) predictCovariance(sigmaPred *mat.Dense, sigmaMeanPred *mat.VecDens
 
 	for c := 0; c < cols; c++ {
 		sigmaVec = sigmaPred.ColView(c).(*mat.VecDense)
-		sigmaVec.SubVec(sigmaVec, sigmaMeanPred)
+		sigmaVec.SubVec(sigmaVec, sigmaPredMean)
 		cov.Mul(sigmaVec, sigmaVec.T())
 
 		if c == 0 {
@@ -286,16 +337,15 @@ func (k *UKF) predictCovariance(sigmaPred *mat.Dense, sigmaMeanPred *mat.VecDens
 		}
 	}
 
-	k.ppred.CopySym(ppred)
-
 	return ppred, nil
 }
 
-// Predict predicts the next output of the system given the state x and input u and returns it.
+// Predict predicts the next output of the system given the state x and input u and returns its estimate.
 // It returns error if it either fails to generate or propagate sigma points (and x) to the next state.
 func (k *UKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// generate new sigma points around the new state
-	if err := k.genSigmaPoints(x); err != nil {
+	sigmaPoints, err := k.GenSigmaPoints(x)
+	if err != nil {
 		return nil, fmt.Errorf("Failed to generate sigma points: %v", err)
 	}
 
@@ -308,20 +358,32 @@ func (k *UKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// observe system output in the next step
 	yNext, err := k.model.Observe(xNext, u)
 	if err != nil {
-		return nil, fmt.Errorf("System state observation failed: %v", err)
+		return nil, fmt.Errorf("Failed to observe system output: %v", err)
 	}
 
-	sigmaPred, sigmaMeanPred, err := k.predictSigmaPoints(x, u)
+	sigmaPointsNext, err := k.propagateSigmaPoints(sigmaPoints, u)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to propagate sigma points: %v", err)
 	}
 
-	ppred, err := k.predictCovariance(sigmaPred, sigmaMeanPred)
+	cov, err := k.predictCovariance(sigmaPointsNext.x, sigmaPointsNext.xMean)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to predict covariance: %v", err)
 	}
 
-	return estimate.NewBaseWithCov(xNext, yNext, ppred)
+	est, err := estimate.NewBaseWithCov(xNext, yNext, cov)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to estimate next state: %v", err)
+	}
+
+	// it's safe to update the filter state
+	k.spred.x.Copy(sigmaPointsNext.x)
+	k.spred.xMean.CopyVec(sigmaPointsNext.xMean)
+	k.spred.y.Copy(sigmaPointsNext.y)
+	k.spred.yMean.CopyVec(sigmaPointsNext.yMean)
+	k.ppred.CopySym(cov)
+
+	return est, nil
 }
 
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
@@ -341,13 +403,13 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	covxy := mat.NewDense(in, out, nil)
 	covyy := mat.NewDense(out, out, nil)
 
-	_, cols := k.x.Dims()
+	_, cols := k.s.X.Dims()
 	for c := 0; c < cols; c++ {
-		sigmaVec = k.xpred.ColView(c).(*mat.VecDense)
-		sigmaVec.SubVec(sigmaVec, k.xmpred)
+		sigmaVec = k.spred.x.ColView(c).(*mat.VecDense)
+		sigmaVec.SubVec(sigmaVec, k.spred.xMean)
 
-		sigmaOutVec = k.ypred.ColView(c).(*mat.VecDense)
-		sigmaOutVec.SubVec(sigmaOutVec, k.ympred)
+		sigmaOutVec = k.spred.y.ColView(c).(*mat.VecDense)
+		sigmaOutVec.SubVec(sigmaOutVec, k.spred.xMean)
 
 		covxy.Mul(sigmaVec, sigmaOutVec.T())
 		covyy.Mul(sigmaOutVec, sigmaOutVec.T())
@@ -372,7 +434,7 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	// innovation vector
 	inn := &mat.VecDense{}
-	inn.SubVec(z, k.ympred)
+	inn.SubVec(z, k.spred.yMean)
 
 	// correct state x
 	corr := &mat.Dense{}
@@ -384,23 +446,29 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	kr.Mul(pyy, gain.T())
 	pCorr := &mat.Dense{}
 	pCorr.Mul(gain, kr)
-	pCorr.Sub(k.p, pCorr)
-
-	// update UKF covariance matrix
-	for i := 0; i < in; i++ {
-		for j := i; j < in; j++ {
-			k.p.SetSym(i, j, pCorr.At(i, j))
-		}
-	}
-	// update UKF innovation vector
-	k.inn.CopyVec(inn)
+	pCorr.Sub(k.ppred, pCorr)
 
 	output, err := k.model.Observe(x, u)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to calculate output estimate: %v", err)
 	}
 
-	return estimate.NewBaseWithCov(x, output, k.p)
+	est, err := estimate.NewBaseWithCov(x, output, k.p)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to update estimate: %v", err)
+	}
+
+	// update UKF innovation vector
+	k.inn.CopyVec(inn)
+	k.k.Copy(gain)
+	// update UKF covariance matrix
+	for i := 0; i < in; i++ {
+		for j := i; j < in; j++ {
+			k.p.SetSym(i, j, pCorr.At(i, j))
+		}
+	}
+
+	return est, nil
 }
 
 // Run runs one step of UKF for given state x, input u and measurement z.

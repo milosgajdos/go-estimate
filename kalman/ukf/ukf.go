@@ -47,8 +47,8 @@ type UKF struct {
 	Wc0 float64
 	// Wsp is weight for regular sigma points and covariances
 	W float64
-	// s stores UKF sigma points
-	s *SigmaPoints
+	// sp stores UKF sigma points
+	sp *SigmaPoints
 	// spred stores sigma points predictions
 	spred *sigmaPointsPred
 	// p is the UKF covariance matrix
@@ -135,28 +135,28 @@ func New(model filter.Model, init filter.InitCond, c *Config) (*UKF, error) {
 		Cov: cov,
 	}
 
-	// sigma points prediction matrix; stores only system sigma points vectors
-	points := mat.NewDense(in, 2*spDim, nil)
-	// expected predicted sigma point state
+	// sigma points predicted states
+	xPred := mat.NewDense(in, 2*spDim+1, nil)
+	// expected predicted sigma point state a.k.a. mean sigma point predicted state
 	xMean := mat.NewVecDense(in, nil)
 
-	// sigma point outputs; stores inly system sigma points outputs
-	outputs := mat.NewDense(out, 2*spDim, nil)
-	// expected predicted sigma point output
+	// sigma points predicted outputs
+	yPred := mat.NewDense(out, 2*spDim+1, nil)
+	// expected predicted sigma point output a.k.a. mean sigma point predicted output
 	yMean := mat.NewVecDense(out, nil)
 
-	pred := &sigmaPointsPred{
-		x:     points,
+	spred := &sigmaPointsPred{
+		x:     xPred,
 		xMean: xMean,
-		y:     outputs,
+		y:     yPred,
 		yMean: yMean,
 	}
 
-	// predicted covariance; this covariance will be corrected in Update
+	// predicted covariance; this covariance is corrected using new measurement
 	ppred := mat.NewSymDense(init.Cov().Symmetric(), nil)
 	ppred.CopySym(init.Cov())
 
-	// corrected matrix starts the same as p_
+	// initialize covariance matrix to initial condition covariance
 	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
 	p.CopySym(init.Cov())
 
@@ -172,8 +172,8 @@ func New(model filter.Model, init filter.InitCond, c *Config) (*UKF, error) {
 		Wm0:   Wm0,
 		Wc0:   Wc0,
 		W:     W,
-		s:     sp,
-		spred: pred,
+		sp:    sp,
+		spred: spred,
 		p:     p,
 		ppred: ppred,
 		inn:   inn,
@@ -184,10 +184,10 @@ func New(model filter.Model, init filter.InitCond, c *Config) (*UKF, error) {
 // GenSigmaPoints generates new UKF sigma points and their covariance and returns them.
 // It returns error if it fails to generate new sigma points.
 func (k *UKF) GenSigmaPoints(x mat.Vector) (*SigmaPoints, error) {
-	rows, cols := k.s.X.Dims()
+	rows, cols := k.sp.X.Dims()
 	sp := mat.NewDense(rows, cols, nil)
 
-	n := k.s.Cov.Symmetric()
+	n := k.sp.Cov.Symmetric()
 	spCov := mat.NewSymDense(n, nil)
 
 	//fmt.Println("N:", n)
@@ -264,18 +264,16 @@ func (k *UKF) GenSigmaPoints(x mat.Vector) (*SigmaPoints, error) {
 // It calculates mean predicted sigma point state and returns it with predicted sigma points states.
 // It returns error if it fails to propagate the sigma points or observe their outputs.
 func (k *UKF) propagateSigmaPoints(sp *SigmaPoints, u mat.Vector) (*sigmaPointsPred, error) {
-	in, _ := k.model.Dims()
-	_, cols := k.s.X.Dims()
-	xrows, _ := k.spred.x.Dims()
-	yrows, _ := k.spred.y.Dims()
+	in, out := k.model.Dims()
+	_, cols := sp.X.Dims()
 
 	// sigmaPred and sigmaOutPred store predicted sigma point states and outputs
-	next := mat.NewDense(xrows, cols, nil)
-	out := mat.NewDense(yrows, cols, nil)
+	x := mat.NewDense(in, cols, nil)
+	y := mat.NewDense(out, cols, nil)
 
-	// xmPred and ymPred store predicted mean sigma point and output
-	xMean := mat.NewVecDense(xrows, nil)
-	yMean := mat.NewVecDense(yrows, nil)
+	// xmPred and ymPred store predicted mean sigma point and its output
+	xMean := mat.NewVecDense(in, nil)
+	yMean := mat.NewVecDense(out, nil)
 
 	// propagate all sigma points and observe their output
 	for c := 0; c < cols; c++ {
@@ -283,13 +281,13 @@ func (k *UKF) propagateSigmaPoints(sp *SigmaPoints, u mat.Vector) (*sigmaPointsP
 		if err != nil {
 			return nil, fmt.Errorf("Failed to propagate sigma point: %v", err)
 		}
-		next.Slice(0, sigmaNext.Len(), c, c+1).(*mat.Dense).Copy(sigmaNext)
+		x.Slice(0, sigmaNext.Len(), c, c+1).(*mat.Dense).Copy(sigmaNext)
 
 		sigmaOut, err := k.model.Observe(sigmaNext, u)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to observe sigma point output: %v", err)
 		}
-		out.Slice(0, sigmaOut.Len(), c, c+1).(*mat.Dense).Copy(sigmaOut)
+		y.Slice(0, sigmaOut.Len(), c, c+1).(*mat.Dense).Copy(sigmaOut)
 
 		if c == 0 {
 			xMean.AddScaledVec(xMean, k.Wm0, sigmaNext)
@@ -301,27 +299,26 @@ func (k *UKF) propagateSigmaPoints(sp *SigmaPoints, u mat.Vector) (*sigmaPointsP
 	}
 
 	return &sigmaPointsPred{
-		x:     next,
+		x:     x,
 		xMean: xMean,
-		y:     out,
+		y:     y,
 		yMean: yMean,
 	}, nil
 }
 
 // predictCovariance predicts UKF covariance and returns it.
 // It returns error if it fails to calculate predicted covariance from predicted sigma points.
-func (k *UKF) predictCovariance(sigmaPred *mat.Dense, sigmaPredMean *mat.VecDense) (*mat.SymDense, error) {
-	_, cols := k.s.X.Dims()
-	xrows, _ := k.spred.x.Dims()
+func (k *UKF) predictCovariance(x *mat.Dense, xMean *mat.VecDense) (*mat.SymDense, error) {
+	rows, cols := x.Dims()
 
-	// predict covariance
-	ppred := mat.NewSymDense(xrows, nil)
-	cov := mat.NewDense(xrows, xrows, nil)
-	sigmaVec := mat.NewVecDense(xrows, nil)
+	// ppred is predicted covariance
+	ppred := mat.NewSymDense(rows, nil)
+	cov := mat.NewDense(rows, rows, nil)
+	sigmaVec := mat.NewVecDense(rows, nil)
 
 	for c := 0; c < cols; c++ {
-		sigmaVec = sigmaPred.ColView(c).(*mat.VecDense)
-		sigmaVec.SubVec(sigmaVec, sigmaPredMean)
+		sigmaVec.CopyVec(x.ColView(c))
+		sigmaVec.SubVec(sigmaVec, xMean)
 		cov.Mul(sigmaVec, sigmaVec.T())
 
 		if c == 0 {
@@ -330,8 +327,8 @@ func (k *UKF) predictCovariance(sigmaPred *mat.Dense, sigmaPredMean *mat.VecDens
 			cov.Scale(k.W, cov)
 		}
 
-		for i := 0; i < xrows; i++ {
-			for j := i; j < xrows; j++ {
+		for i := 0; i < rows; i++ {
+			for j := i; j < rows; j++ {
 				ppred.SetSym(i, j, ppred.At(i, j)+cov.At(i, j))
 			}
 		}
@@ -403,13 +400,13 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	covxy := mat.NewDense(in, out, nil)
 	covyy := mat.NewDense(out, out, nil)
 
-	_, cols := k.s.X.Dims()
+	_, cols := k.sp.X.Dims()
 	for c := 0; c < cols; c++ {
-		sigmaVec = k.spred.x.ColView(c).(*mat.VecDense)
+		sigmaVec.CopyVec(k.spred.x.ColView(c))
 		sigmaVec.SubVec(sigmaVec, k.spred.xMean)
 
-		sigmaOutVec = k.spred.y.ColView(c).(*mat.VecDense)
-		sigmaOutVec.SubVec(sigmaOutVec, k.spred.xMean)
+		sigmaOutVec.CopyVec(k.spred.y.ColView(c))
+		sigmaOutVec.SubVec(sigmaOutVec, k.spred.yMean)
 
 		covxy.Mul(sigmaVec, sigmaOutVec.T())
 		covyy.Mul(sigmaOutVec, sigmaOutVec.T())

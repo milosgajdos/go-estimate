@@ -56,12 +56,12 @@ type Estimate interface {
 
 // Noise is dynamical system noise
 type Noise interface {
-	// Sample returns a sample of the noise
-	Sample() mat.Vector
-	// Cov returns noise covariance matrix
-	Cov() mat.Symmetric
 	// Mean returns noise mean
 	Mean() []float64
+	// Cov returns noise covariance matrix
+	Cov() mat.Symmetric
+	// Sample returns a sample of the noise
+	Sample() mat.Vector
 	// Reset resets noise
 	Reset()
 }

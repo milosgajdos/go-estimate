@@ -124,19 +124,38 @@ func ToSymDense(m *mat.Dense) (*mat.SymDense, error) {
 	return mat.NewSymDense(r, vals), nil
 }
 
-// BlockDiag accepts a slice of symmetric matrices and turn them into a block diagonal matrix and returns it
-func BlockDiag(mx []mat.Matrix) mat.Matrix {
-	blkDiag := &mat.Dense{}
+// BlockDiag accepts a slice of matrices, turns them into a block diagonal matrix and returns it.
+// It skips zero sized matrices when assembling the block diagonal matrix.
+func BlockDiag(mx []mat.Matrix) *mat.Dense {
+	m := &mat.Dense{}
 
 	for i := range mx {
 		r, c := mx[i].Dims()
 		if r == 0 || c == 0 {
 			continue
 		}
-		dR, dC := blkDiag.Dims()
-		blkDiag = blkDiag.Grow(r, c).(*mat.Dense)
-		blkDiag.Slice(dR, dR+r, dC, dC+c).(*mat.Dense).Copy(mx[i])
+		dR, dC := m.Dims()
+		m = m.Grow(r, c).(*mat.Dense)
+		m.Slice(dR, dR+r, dC, dC+c).(*mat.Dense).Copy(mx[i])
 	}
 
-	return blkDiag
+	return m
+}
+
+// BlockSymDiag turns a slice of symmetric matrices into a symmetric block diagonal matrix and returns it.
+// It skips zero sized matrices when assembling the symmetric block diagonal matrix.
+func BlockSymDiag(mx []mat.Symmetric) *mat.SymDense {
+	m := &mat.SymDense{}
+
+	for i := range mx {
+		n := mx[i].Symmetric()
+		if n == 0 {
+			continue
+		}
+		r := m.Symmetric()
+		m = m.GrowSquare(n).(*mat.SymDense)
+		m.SliceSquare(r, r+n).(*mat.SymDense).CopySym(mx[i])
+	}
+
+	return m
 }

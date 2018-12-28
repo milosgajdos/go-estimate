@@ -36,7 +36,7 @@ func NewFall(A, B, C, D *mat.Dense) (*Fall, error) {
 }
 
 // Propagate propagates internal state x of falling ball to the next step
-func (b *Fall) Propagate(x, u mat.Vector) (mat.Vector, error) {
+func (b *Fall) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 	out := new(mat.Dense)
 	out.Mul(b.A, x)
 
@@ -49,7 +49,7 @@ func (b *Fall) Propagate(x, u mat.Vector) (mat.Vector, error) {
 }
 
 // Observe observes external state of falling ball given internal state x and input u
-func (b *Fall) Observe(x, u mat.Vector) (mat.Vector, error) {
+func (b *Fall) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 	out := new(mat.Dense)
 	out.Mul(b.C, x)
 
@@ -67,16 +67,6 @@ func (b *Fall) Dims() (int, int) {
 	out, _ := b.D.Dims()
 
 	return in, out
-}
-
-// StateNoise returns state noise
-func (b *Fall) StateNoise() filter.Noise {
-	return nil
-}
-
-// OutputNoise returns output noise
-func (b *Fall) OutputNoise() filter.Noise {
-	return nil
 }
 
 type initCnd struct {
@@ -199,7 +189,7 @@ func main() {
 	p := 100
 	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
 	// create new bootstrap filter
-	f, err := bootstrap.New(ball, initCond, p, errPDF)
+	f, err := bootstrap.New(ball, initCond, nil, nil, p, errPDF)
 	if err != nil {
 		log.Fatalf("Failed to create bootstrap filter: %v", err)
 	}
@@ -214,16 +204,16 @@ func main() {
 	}
 
 	for i := 0; i < steps; i++ {
-		// internal state ground truth
-		x, err = ball.Propagate(x, u)
+		// ground truth propagation
+		x, err = ball.Propagate(x, u, nil)
 		if err != nil {
 			log.Fatalf("Model Propagation error: %v", err)
 		}
 
 		fmt.Printf("TRUTH State %d:\n%v\n", i, matrix.Format(x))
 
-		// output state ground truth
-		y, err := ball.Observe(x, u)
+		// ground truth observation
+		y, err := ball.Observe(x, u, nil)
 		if err != nil {
 			log.Fatalf("Model Observation error: %v", err)
 		}
@@ -250,7 +240,7 @@ func main() {
 
 		fmt.Printf("FILTER Output %d:\n%v\n", i, matrix.Format(pred.Output()))
 
-		// system model i.e. ground TRUTH
+		// correct state estimate using measurement z
 		est, err = f.Update(est.State(), u, z)
 		if err != nil {
 			log.Fatalf("Filter Correction error: %v", err)

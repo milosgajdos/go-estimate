@@ -151,3 +151,28 @@ func TestBlockDiag(t *testing.T) {
 		}
 	}
 }
+
+func TestBlockSymDiag(t *testing.T) {
+	assert := assert.New(t)
+
+	x := mat.NewSymDense(2, []float64{1.0, 2.0, 2.0, 1.0})
+	y := mat.NewSymDense(1, []float64{4.0})
+	exp := mat.NewSymDense(3, []float64{
+		1.0, 2.0, 0.0,
+		2.0, 1.0, 0.0,
+		0.0, 0.0, 4.0})
+
+	mx := make([]mat.Symmetric, 3)
+	mx[0] = x
+	mx[1] = &mat.SymDense{}
+	mx[2] = y
+
+	m := BlockSymDiag(mx)
+
+	n := m.Symmetric()
+	for i := 0; i < n; i++ {
+		for j := i; j < n; j++ {
+			assert.InDelta(exp.At(i, j), m.At(i, j), 0.001)
+		}
+	}
+}

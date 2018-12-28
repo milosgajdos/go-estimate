@@ -27,7 +27,7 @@ func TestNewBase(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestStateOutputCovariance(t *testing.T) {
+func TestStateOutputCov(t *testing.T) {
 	assert := assert.New(t)
 
 	state := mat.NewVecDense(2, []float64{1.0, 2.0})
@@ -48,7 +48,7 @@ func TestStateOutputCovariance(t *testing.T) {
 		assert.Equal(o.AtVec(i), b.Output().AtVec(i))
 	}
 
-	r, c := b.Covariance().Dims()
+	r, c := b.Cov().Dims()
 	for i := 0; i < r; i++ {
 		for j := 0; j < c; j++ {
 			assert.Equal(cov.At(i, j), b.cov.At(i, j))

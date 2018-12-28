@@ -19,10 +19,14 @@ type Base struct {
 // NewBase returns base information estimate given state and output
 func NewBase(state, output mat.Vector) (*Base, error) {
 	s := &mat.VecDense{}
-	s.CloneVec(state)
+	if state != nil {
+		s.CloneVec(state)
+	}
 
 	o := &mat.VecDense{}
-	o.CloneVec(output)
+	if output != nil {
+		o.CloneVec(output)
+	}
 
 	c := mat.NewSymDense(s.Len(), nil)
 
@@ -74,8 +78,8 @@ func (b *Base) Output() mat.Vector {
 	return o
 }
 
-// Covariance returns covariance estimate
-func (b *Base) Covariance() mat.Symmetric {
+// Cov returns covariance estimate
+func (b *Base) Cov() mat.Symmetric {
 	cov := mat.NewSymDense(b.cov.Symmetric(), nil)
 	cov.CopySym(b.cov)
 

@@ -28,10 +28,6 @@ func (m *mockModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 		return nil, fmt.Errorf("Invalid state vector")
 	}
 
-	if q != nil && q.Len() != _in {
-		return nil, fmt.Errorf("Invalid state noise")
-	}
-
 	out := new(mat.Dense)
 	out.Mul(m.A, x)
 
@@ -40,7 +36,7 @@ func (m *mockModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if q != nil {
+	if q != nil && q.Len() != _in {
 		out.Add(out, q)
 	}
 
@@ -57,10 +53,6 @@ func (m *mockModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 		return nil, fmt.Errorf("Invalid state vector")
 	}
 
-	if r != nil && r.Len() != _out {
-		return nil, fmt.Errorf("Invalid output noise")
-	}
-
 	out := new(mat.Dense)
 	out.Mul(m.C, x)
 
@@ -69,7 +61,7 @@ func (m *mockModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if r != nil {
+	if r != nil && r.Len() != _out {
 		out.Add(out, r)
 	}
 
@@ -173,14 +165,6 @@ func TestUKFNew(t *testing.T) {
 	f, err = New(badModel, ic, q, r, c)
 	assert.Nil(f)
 	assert.Error(err)
-
-	// invalid config
-	_alpha := c.Alpha
-	c.Alpha = -10.0
-	f, err = New(okModel, ic, q, r, c)
-	assert.Nil(f)
-	assert.Error(err)
-	c.Alpha = _alpha
 
 	// invalid state noise dimension
 	_q := q

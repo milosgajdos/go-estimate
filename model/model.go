@@ -70,10 +70,6 @@ func (b *Fall) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 		return nil, fmt.Errorf("Invalid state vector")
 	}
 
-	if q != nil && q.Len() != _in {
-		return nil, fmt.Errorf("Invalid state noise")
-	}
-
 	out := new(mat.Dense)
 	out.Mul(b.A, x)
 
@@ -82,7 +78,7 @@ func (b *Fall) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if q != nil {
+	if q != nil && q.Len() == _in {
 		out.Add(out, q)
 	}
 
@@ -100,10 +96,6 @@ func (b *Fall) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 		return nil, fmt.Errorf("Invalid state vector")
 	}
 
-	if r != nil && r.Len() != _out {
-		return nil, fmt.Errorf("Invalid output noise")
-	}
-
 	out := new(mat.Dense)
 	out.Mul(b.C, x)
 
@@ -112,7 +104,7 @@ func (b *Fall) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if r != nil {
+	if r != nil && r.Len() == _out {
 		out.Add(out, r)
 	}
 

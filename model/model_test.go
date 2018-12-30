@@ -87,11 +87,6 @@ func TestFallPropagate(t *testing.T) {
 	assert.Nil(v)
 	assert.Error(err)
 
-	_q := mat.NewVecDense(10, nil)
-	v, err = f.Propagate(x, u, _q)
-	assert.Nil(v)
-	assert.Error(err)
-
 	v, err = f.Propagate(x, u, nil)
 	assert.NotNil(v)
 	assert.NoError(err)
@@ -115,11 +110,6 @@ func TestFallObserve(t *testing.T) {
 
 	_x := mat.NewVecDense(10, nil)
 	v, err = f.Observe(_x, u, r)
-	assert.Nil(v)
-	assert.Error(err)
-
-	_r := mat.NewVecDense(10, nil)
-	v, err = f.Observe(x, u, _r)
 	assert.Nil(v)
 	assert.Error(err)
 

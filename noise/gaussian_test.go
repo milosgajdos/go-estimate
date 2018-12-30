@@ -9,6 +9,7 @@ import (
 
 func TestNewGaussian(t *testing.T) {
 	assert := assert.New(t)
+
 	for _, test := range []struct {
 		mean []float64
 		cov  *mat.SymDense
@@ -22,9 +23,21 @@ func TestNewGaussian(t *testing.T) {
 		assert.NotNil(g)
 		assert.NoError(err)
 	}
+
+	// invalid mean
+	mean := []float64{2}
+	cov := mat.NewSymDense(2, []float64{1, 0.1, 0.1, 1})
+	assert.Panics(func() { NewGaussian(mean, cov) })
+
+	// invalid covariance: not positive definite
+	mean = []float64{2, 3}
+	cov = mat.NewSymDense(2, []float64{1, 2, 2, 1})
+	g, err := NewGaussian(mean, cov)
+	assert.Nil(g)
+	assert.Error(err)
 }
 
-func TestMeanCov(t *testing.T) {
+func TestGaussianMeanCov(t *testing.T) {
 	assert := assert.New(t)
 
 	mean := []float64{2, 3}
@@ -50,7 +63,7 @@ func TestMeanCov(t *testing.T) {
 		for r := 0; r < rows; r++ {
 			for c := 0; c < cols; c++ {
 				if gCov.At(r, c) != cov.At(r, c) {
-					t.Errorf("Wrong covariance matrix returned")
+					t.Errorf("Incorrect covariance matrix returned")
 				}
 			}
 		}
@@ -60,8 +73,9 @@ func TestMeanCov(t *testing.T) {
 	}
 }
 
-func TestSample(t *testing.T) {
+func TestGaussianSample(t *testing.T) {
 	assert := assert.New(t)
+
 	for _, test := range []struct {
 		mean []float64
 		cov  *mat.SymDense
@@ -81,8 +95,9 @@ func TestSample(t *testing.T) {
 	}
 }
 
-func TestReset(t *testing.T) {
+func TestGaussianReset(t *testing.T) {
 	assert := assert.New(t)
+
 	mean := []float64{2, 3}
 	cov := mat.NewSymDense(2, []float64{1, 0.1, 0.1, 1})
 
@@ -92,14 +107,14 @@ func TestReset(t *testing.T) {
 
 	sample1 := g.Sample()
 
-	err = g.Reset()
+	g.Reset()
 	assert.NoError(err)
 
 	sample2 := g.Sample()
 	assert.NotEqual(sample1, sample2)
 }
 
-func TestString(t *testing.T) {
+func TestGaussianString(t *testing.T) {
 	assert := assert.New(t)
 
 	str := `Gaussian{

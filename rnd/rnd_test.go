@@ -20,6 +20,7 @@ func TestWithCovN(t *testing.T) {
 	assert.Error(err)
 	assert.Nil(res)
 
+	// 1 sample
 	nTest = 1
 	res, err = WithCovN(covTest, nTest)
 	assert.NoError(err)

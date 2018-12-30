@@ -7,6 +7,7 @@ import (
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
 	"github.com/milosgajdos83/go-filter/matrix"
+	"github.com/milosgajdos83/go-filter/noise"
 	"github.com/milosgajdos83/go-filter/rnd"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
@@ -25,41 +26,64 @@ type Bootstrap struct {
 	x *mat.Dense
 	// y stores particle outputs
 	y *mat.Dense
-	// diff is a buffer which stores a diff // between measurement and each particle output.
-	// The size of diff is fixed -- it's equal to the size of output,
+	// q is state a.k.a. process noise
+	q filter.Noise
+	// r is output a.k.a. measurement noise
+	r filter.Noise
+	// inn stores a diff between measurement vector and particular particle output.
+	// In Kalman filter family similar vector is referred to as "innovation vector"
+	// The size of inn is fixed -- it's equal to the size of system output,
 	// so we preallocate it to avoid reallocating it on every call to Update()
-	diff []float64
+	inn []float64
 	// errPDF is PDF (Probability Density Function) of filter output error
 	errPDF distmv.LogProber
 }
 
 // New creates new Bootstrap Filter with following parameters:
-// - model: system model
+// - m:     system model
 // - init:  initial condition of the filter
-// - particles:  number of filter particles
+// - q:     state  noise a.k.a. process noise
+// - r:     output  noise a.k.a. measurement noise
+// - p:     number of filter particles
 // - pdf:   Probability Density Function (PDF) of filter output error
 // It returns error if non-positive number of particles is given or if the particles fail to be generated.
-func New(model filter.Model, init filter.InitCond, particles int, pdf distmv.LogProber) (*Bootstrap, error) {
+func New(m filter.Model, init filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*Bootstrap, error) {
 	// must have at least one particle; can't be negative
-	if particles <= 0 {
-		return nil, fmt.Errorf("Invalid particle count: %d", particles)
+	if p <= 0 {
+		return nil, fmt.Errorf("Invalid particle count: %d", p)
 	}
 
 	// size of input and output vectors
-	in, out := model.Dims()
+	in, out := m.Dims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
 	}
 
+	if q != nil {
+		if q.Cov().Symmetric() != in {
+			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
+		}
+	} else {
+		q, _ = noise.NewZero(in)
+	}
+
+	if r != nil {
+		if r.Cov().Symmetric() != out {
+			return nil, fmt.Errorf("Invalid output noise dimension: %d", r.Cov().Symmetric())
+		}
+	} else {
+		r, _ = noise.NewZero(out)
+	}
+
 	// Initialize particle weights to equal probabilities:
 	// particle weights must sum up to 1 to represent probability
-	w := make([]float64, particles)
+	w := make([]float64, p)
 	for i := range w {
-		w[i] = 1 / float64(particles)
+		w[i] = 1 / float64(p)
 	}
 
 	// draw particles from distribution with covariance init.Cov()
-	x, err := rnd.WithCovN(init.Cov(), particles)
+	x, err := rnd.WithCovN(init.Cov(), p)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
 	}
@@ -72,15 +96,17 @@ func New(model filter.Model, init filter.InitCond, particles int, pdf distmv.Log
 		}
 	}
 
-	y := mat.NewDense(out, particles, nil)
-	diff := make([]float64, out)
+	y := mat.NewDense(out, p, nil)
+	inn := make([]float64, out)
 
 	return &Bootstrap{
-		model:  model,
+		model:  m,
 		w:      w,
 		x:      x,
 		y:      y,
-		diff:   diff,
+		q:      q,
+		r:      r,
+		inn:    inn,
 		errPDF: pdf,
 	}, nil
 }
@@ -89,97 +115,93 @@ func New(model filter.Model, init filter.InitCond, particles int, pdf distmv.Log
 // It returns error if it fails to propagate either the filter particles or x to the next state.
 func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// propagate input state to the next step
-	xNext, err := b.model.Propagate(x, u)
+	xNext, err := b.model.Propagate(x, u, b.q.Sample())
 	if err != nil {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	// propagate filter particles to the next step
-	for c := range b.w {
-		xPartNext, err := b.model.Propagate(b.x.ColView(c), u)
-		if err != nil {
-			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
-		}
-		b.x.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
-	}
-
 	// observe system output in the next step
-	yNext, err := b.model.Observe(xNext, u)
+	yNext, err := b.model.Observe(xNext, u, b.r.Sample())
 	if err != nil {
 		return nil, fmt.Errorf("System state observation failed: %v", err)
 	}
 
-	// observe particle output in the next step
+	// TODO: Get rid of these allocations; maybe have xpred,ypred as part of bf state
+	r, c := b.x.Dims()
+	xpred := mat.NewDense(r, c, nil)
+	r, c = b.y.Dims()
+	ypred := mat.NewDense(r, c, nil)
+	// propagate filter particles to the next step and observe output
 	for c := range b.w {
-		yPartNext, err := b.model.Observe(b.x.ColView(c), u)
+		xPartNext, err := b.model.Propagate(b.x.ColView(c), u, b.q.Sample())
+		if err != nil {
+			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
+		}
+		xpred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
+
+		yPartNext, err := b.model.Observe(xPartNext, u, b.r.Sample())
 		if err != nil {
 			return nil, fmt.Errorf("Particle state observation failed: %v", err)
 		}
-		b.y.Slice(0, yPartNext.Len(), c, c+1).(*mat.Dense).Copy(yPartNext)
+		ypred.Slice(0, yPartNext.Len(), c, c+1).(*mat.Dense).Copy(yPartNext)
 	}
 
-	return estimate.NewBase(xNext, yNext), nil
+	// update filter particles and their observed outputs
+	b.x.Copy(xpred)
+	b.y.Copy(ypred)
+
+	return estimate.NewBase(xNext, yNext)
 }
 
-// Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
-// It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
+// Update corrects state x using the measurement z, given control intput u and returns the corrected estimate.
+// It returns error if it fails to calculate system output estimate or if the size of z is invalid.
 func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
-	// get measurement dimensions
-	zRows := z.Len()
-	if zRows != len(b.diff) {
-		return nil, fmt.Errorf("Invalid measurement size: %d", zRows)
+	if z.Len() != len(b.inn) {
+		return nil, fmt.Errorf("Invalid measurement size: %d", z.Len())
 	}
 
 	// Update particle weights:
 	// - calculate observation error for each particle output
 	// - multiply the resulting error with particle weight
 	for c := range b.w {
-		for r := 0; r < zRows; r++ {
-			b.diff[r] = z.At(r, 0) - b.y.ColView(c).AtVec(r)
+		for r := 0; r < z.Len(); r++ {
+			b.inn[r] = z.At(r, 0) - b.y.ColView(c).AtVec(r)
 		}
-		b.w[c] = b.w[c] * math.Exp(b.errPDF.LogProb(b.diff))
+		b.w[c] = b.w[c] * math.Exp(b.errPDF.LogProb(b.inn))
 	}
 
 	// normalize the particle weights so they express probability
 	floats.Scale(1/floats.Sum(b.w), b.w)
 
-	// attempt to convert x to *mat.VecDense
-	state, ok := x.(*mat.VecDense)
-	if !ok {
-		return nil, fmt.Errorf("Invalid state supplied: %v", x)
-	}
-
-	pRows, _ := b.x.Dims()
+	rows, _ := b.x.Dims()
 	wavg := 0.0
 	// update/correct particles estimates to weighted average
-	for r := 0; r < pRows; r++ {
+	for r := 0; r < rows; r++ {
 		for c := range b.w {
 			wavg += b.w[c] * b.x.At(r, c)
 		}
-		state.SetVec(r, wavg)
+		x.(*mat.VecDense).SetVec(r, wavg)
 		wavg = 0.0
 	}
 
 	// calculate corrected output estimate
-	output, err := b.model.Observe(x, u)
+	output, err := b.model.Observe(x, u, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to calculate output estimate: %v", err)
 	}
 
-	return estimate.NewBase(state, output), nil
+	return estimate.NewBase(x, output)
 }
 
 // Run runs one step of Bootstrap Filter for given state x, input u and measurement z.
 // It corrects system state x using measurement z and returns new system estimate.
-// It returns error if it fails to either propagate or correct state x.
+// It returns error if it either fails to propagate or correct state x or its particles.
 func (b *Bootstrap) Run(x, u, z mat.Vector) (filter.Estimate, error) {
-	// predict the next output state
 	pred, err := b.Predict(x, u)
 	if err != nil {
 		return nil, err
 	}
 
-	// correct the output and return it
 	est, err := b.Update(pred.State(), u, z)
 	if err != nil {
 		return nil, err

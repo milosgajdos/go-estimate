@@ -1,4 +1,4 @@
-package bootstrap
+package ukf
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"github.com/milosgajdos83/go-filter/noise"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/stat/distmv"
 )
 
 type mockModel struct {
@@ -37,7 +36,7 @@ func (m *mockModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if q != nil {
+	if q != nil && q.Len() != _in {
 		out.Add(out, q)
 	}
 
@@ -62,7 +61,7 @@ func (m *mockModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 
 	out.Add(out, outU)
 
-	if r != nil {
+	if r != nil && r.Len() != _out {
 		out.Add(out, r)
 	}
 
@@ -107,26 +106,24 @@ var (
 	okModel  *mockModel
 	badModel *invalidModel
 	ic       *initCond
-	p        int
-	u        *mat.VecDense
-	z        *mat.VecDense
 	q        filter.Noise
 	r        filter.Noise
-	errPDF   distmv.LogProber
+	c        *Config
+	u        *mat.VecDense
+	z        *mat.VecDense
 )
 
 func setup() {
-	// BF parameters
-	p = 10
-	outCov := mat.NewSymDense(1, []float64{0.25})
-	errPDF, _ = distmv.NewNormal([]float64{0}, outCov, nil)
-
 	u = mat.NewVecDense(1, []float64{-1.0})
 	z = mat.NewVecDense(1, []float64{-1.5})
 
 	// initial condition
-	var state mat.Vector = mat.NewVecDense(2, []float64{1.0, 1.0})
-	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	initState := mat.NewVecDense(2, []float64{1.0, 3.0})
+	initCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
+
+	// state and output noise
+	q, _ = noise.NewGaussian([]float64{0, 0}, initCov)
+	r, _ = noise.NewGaussian([]float64{0}, mat.NewSymDense(1, []float64{0.25}))
 
 	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
 	B := mat.NewDense(2, 1, []float64{0.5, 1.0})
@@ -136,12 +133,15 @@ func setup() {
 	okModel = &mockModel{A, B, C, D}
 	badModel = &invalidModel{}
 
-	q, _ = noise.NewZero(state.Len())
-	r, _ = noise.NewZero(z.Len())
+	c = &Config{
+		Alpha: 0.75,
+		Beta:  2.0,
+		Kappa: 3.0,
+	}
 
 	ic = &initCond{
-		state: state,
-		cov:   stateCov,
+		state: initState,
+		cov:   initCov,
 	}
 }
 
@@ -154,148 +154,148 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func TestNew(t *testing.T) {
+func TestUKFNew(t *testing.T) {
 	assert := assert.New(t)
 
-	// invalid particle count
-	f, err := New(okModel, ic, q, r, -10, errPDF)
+	f, err := New(okModel, ic, q, r, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	// invalid model: incorrect dimensions
+	f, err = New(badModel, ic, q, r, c)
 	assert.Nil(f)
 	assert.Error(err)
 
-	// invalid model
-	f, err = New(badModel, ic, q, r, p, errPDF)
-	assert.Nil(f)
-	assert.Error(err)
-
-	// invalid state noise
+	// invalid state noise dimension
 	_q := q
 	q, _ = noise.NewZero(20)
-	f, err = New(okModel, ic, q, r, p, errPDF)
+	f, err = New(okModel, ic, q, r, c)
 	assert.Nil(f)
 	assert.Error(err)
 	q = _q
 
-	// invalid output noise
+	// invalid output noise dimension
 	_r := r
 	r, _ = noise.NewZero(20)
-	f, err = New(okModel, ic, q, r, p, errPDF)
+	f, err = New(okModel, ic, q, r, c)
 	assert.Nil(f)
 	assert.Error(err)
 	r = _r
 
-	// nil state and output noise
-	f, err = New(okModel, ic, nil, nil, p, errPDF)
-	assert.NotNil(f)
-	assert.NoError(err)
-
-	// valid parameters
-	f, err = New(okModel, ic, q, r, p, errPDF)
+	// zero [state and output] noise
+	f, err = New(okModel, ic, nil, nil, c)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
 
-func TestPredict(t *testing.T) {
+func TestUKFGenSigmaPoints(t *testing.T) {
 	assert := assert.New(t)
 
-	// create bootstrap filter
-	f, err := New(okModel, ic, q, r, p, errPDF)
+	f, err := New(okModel, ic, q, r, c)
+	//f, err := New(okModel, ic, nil, r, c)
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	data := []float64{1.0, 1.0}
-	x := mat.NewVecDense(2, data)
-	_u := mat.NewVecDense(3, nil)
+	x := mat.VecDenseCopyOf(ic.state)
+	sp, err := f.GenSigmaPoints(x)
+	assert.NotNil(sp)
+	assert.NoError(err)
+}
 
-	// state propagation error
-	est, err := f.Predict(x, _u)
-	assert.Nil(est)
-	assert.Error(err)
+func TestUKFPredict(t *testing.T) {
+	assert := assert.New(t)
 
-	// particle propagation error
-	_x := mat.NewDense(5, 5, nil)
-	particles := f.x
-	f.x = _x
-	est, err = f.Predict(x, u)
-	assert.Nil(est)
-	assert.Error(err)
+	f, err := New(okModel, ic, q, r, c)
+	assert.NotNil(f)
+	assert.NoError(err)
 
-	f.x = particles
-	est, err = f.Predict(x, u)
+	x := mat.VecDenseCopyOf(ic.state)
+	est, err := f.Predict(x, u)
 	assert.NotNil(est)
 	assert.NoError(err)
-}
 
-func TestUpdate(t *testing.T) {
-	assert := assert.New(t)
-
-	f, err := New(okModel, ic, q, r, p, errPDF)
-	assert.NotNil(f)
-	assert.NoError(err)
-
-	// incorrect state dimensions
-	_x := mat.NewVecDense(3, nil)
-	est, err := f.Update(_x, u, z)
+	// invalid input vector
+	_u := mat.NewVecDense(3, nil)
+	est, err = f.Predict(x, _u)
 	assert.Nil(est)
 	assert.Error(err)
 
-	data := []float64{1.0, 1.0}
-	x := mat.NewVecDense(2, data)
-	est, err = f.Update(x, u, z)
+	// sigma point propagation error
+	_x := mat.NewDense(5, 2, nil)
+	sp := &SigmaPoints{X: _x}
+	spp, err := f.propagateSigmaPoints(sp, _u)
+	assert.Nil(spp)
+	assert.Error(err)
+}
+
+func TestUKFUpdate(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, q, r, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	x := mat.VecDenseCopyOf(ic.state)
+	est, err := f.Update(x, u, z)
 	assert.NotNil(est)
 	assert.NoError(err)
-}
 
-func TestRun(t *testing.T) {
-	assert := assert.New(t)
-
-	data := []float64{1.0, 1.0}
-	x := mat.NewVecDense(2, data)
-
-	f, err := New(okModel, ic, q, r, p, errPDF)
-	assert.NotNil(f)
-	assert.NoError(err)
-
-	// Predict error
+	// invalid input vector
 	_u := mat.NewVecDense(3, nil)
-	est, err := f.Run(x, _u, z)
+	est, err = f.Update(x, _u, z)
 	assert.Nil(est)
 	assert.Error(err)
 
+	// invalid measurement vector
+	_z := mat.NewVecDense(3, nil)
+	est, err = f.Update(x, u, _z)
+	assert.Nil(est)
+	assert.Error(err)
+}
+
+func TestUKFRun(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, q, r, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	x := mat.VecDenseCopyOf(ic.state)
+	est, err := f.Run(x, u, z)
+	assert.NotNil(est)
+	assert.NoError(err)
+
+	// invalid input vector
+	_u := mat.NewVecDense(3, nil)
+	est, err = f.Run(x, _u, z)
+	assert.Nil(est)
+	assert.Error(err)
+
+	// invalid measurement vector
 	_z := mat.NewVecDense(3, nil)
 	est, err = f.Run(x, u, _z)
 	assert.Nil(est)
 	assert.Error(err)
-
-	est, err = f.Run(x, u, z)
-	assert.NotNil(est)
-	assert.NoError(err)
 }
 
-func TestResample(t *testing.T) {
+func TestUKFCovariance(t *testing.T) {
 	assert := assert.New(t)
 
-	// create bootstrap filter
-	f, err := New(okModel, ic, q, r, p, errPDF)
+	f, err := New(okModel, ic, q, r, c)
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	var _w []float64
-	weights := f.w
-	f.w = _w
-	err = f.Resample(0.0)
-	assert.Error(err)
-	f.w = weights
-
-	err = f.Resample(5.0)
-	assert.NoError(err)
-
-	err = f.Resample(0.0)
-	assert.NoError(err)
+	cov := f.Covariance()
+	assert.NotNil(cov)
 }
 
-func TestAlphaGauss(t *testing.T) {
+func TestUKFGain(t *testing.T) {
 	assert := assert.New(t)
 
-	alpha := AlphaGauss(1, 2)
-	assert.True(alpha > 0.0)
+	f, err := New(okModel, ic, q, r, c)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	gain := f.Gain()
+	assert.NotNil(gain)
 }

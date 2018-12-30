@@ -9,6 +9,7 @@ import (
 	"github.com/milosgajdos83/go-filter/bootstrap"
 	"github.com/milosgajdos83/go-filter/estimate"
 	"github.com/milosgajdos83/go-filter/matrix"
+	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
@@ -17,80 +18,6 @@ import (
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 )
-
-// Fall is a model of a falling ball
-type Fall struct {
-	// A is internal state matrix
-	A *mat.Dense
-	// B is control matrix
-	B *mat.Dense
-	// C is output state matrix
-	C *mat.Dense
-	// D is output control matrix
-	D *mat.Dense
-}
-
-// NewFall creates a model of falling ball and returns it
-func NewFall(A, B, C, D *mat.Dense) (*Fall, error) {
-	return &Fall{A: A, B: B, C: C, D: D}, nil
-}
-
-// Propagate propagates internal state x of falling ball to the next step
-func (b *Fall) Propagate(x, u mat.Vector) (mat.Vector, error) {
-	out := new(mat.Dense)
-	out.Mul(b.A, x)
-
-	outU := new(mat.Dense)
-	outU.Mul(b.B, u)
-
-	out.Add(out, outU)
-
-	return out.ColView(0), nil
-}
-
-// Observe observes external state of falling ball given internal state x and input u
-func (b *Fall) Observe(x, u mat.Vector) (mat.Vector, error) {
-	out := new(mat.Dense)
-	out.Mul(b.C, x)
-
-	outU := new(mat.Dense)
-	outU.Mul(b.D, u)
-
-	out.Add(out, outU)
-
-	return out.ColView(0), nil
-}
-
-// Dims returns input and output model dimensions
-func (b *Fall) Dims() (int, int) {
-	_, in := b.A.Dims()
-	out, _ := b.D.Dims()
-
-	return in, out
-}
-
-// StateNoise returns state noise
-func (b *Fall) StateNoise() filter.Noise {
-	return nil
-}
-
-// OutputNoise returns output noise
-func (b *Fall) OutputNoise() filter.Noise {
-	return nil
-}
-
-type initCnd struct {
-	state mat.Vector
-	cov   mat.Symmetric
-}
-
-func (c *initCnd) State() mat.Vector {
-	return c.state
-}
-
-func (c *initCnd) Cov() mat.Symmetric {
-	return c.cov
-}
 
 func NewSystemPlot(model, meas, filter *mat.Dense) (*plot.Plot, error) {
 	p, err := plot.New()
@@ -160,7 +87,7 @@ func main() {
 	D := mat.NewDense(1, 1, []float64{0.0})
 
 	// ball is the model of the system we will simulate
-	ball, err := NewFall(A, B, C, D)
+	ball, err := model.NewFall(A, B, C, D)
 	if err != nil {
 		log.Fatalf("Failed to created ball: %v", err)
 	}
@@ -190,16 +117,13 @@ func main() {
 	filterOut := mat.NewDense(steps, 2, nil)
 
 	// initial condition
-	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{1, 0, 0, 1})
-	initCond := &initCnd{
-		state: x,
-		cov:   stateCov,
-	}
+	stateCov := mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	initCond := model.NewInitCond(x, stateCov)
 
 	p := 100
 	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
 	// create new bootstrap filter
-	f, err := bootstrap.New(ball, initCond, p, errPDF)
+	f, err := bootstrap.New(ball, initCond, nil, nil, p, errPDF)
 	if err != nil {
 		log.Fatalf("Failed to create bootstrap filter: %v", err)
 	}
@@ -207,19 +131,23 @@ func main() {
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
 	// filter initial estimate
-	var est filter.Estimate = estimate.NewBase(x, nil)
+	var est filter.Estimate
+	est, err = estimate.NewBase(x, nil)
+	if err != nil {
+		log.Fatalf("Failed to create initial estimate: %v", err)
+	}
 
 	for i := 0; i < steps; i++ {
-		// internal state ground truth
-		x, err = ball.Propagate(x, u)
+		// ground truth propagation
+		x, err = ball.Propagate(x, u, nil)
 		if err != nil {
 			log.Fatalf("Model Propagation error: %v", err)
 		}
 
 		fmt.Printf("TRUTH State %d:\n%v\n", i, matrix.Format(x))
 
-		// output state ground truth
-		y, err := ball.Observe(x, u)
+		// ground truth observation
+		y, err := ball.Observe(x, u, nil)
 		if err != nil {
 			log.Fatalf("Model Observation error: %v", err)
 		}
@@ -246,7 +174,7 @@ func main() {
 
 		fmt.Printf("FILTER Output %d:\n%v\n", i, matrix.Format(pred.Output()))
 
-		// system model i.e. ground TRUTH
+		// correct state estimate using measurement z
 		est, err = f.Update(est.State(), u, z)
 		if err != nil {
 			log.Fatalf("Filter Correction error: %v", err)

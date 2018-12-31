@@ -348,7 +348,6 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	var spOut mat.Vector
 	var err error
 	rLen := k.r.Cov().Symmetric()
-	//qLen := k.q.Cov().Symmetric()
 
 	// observe sigma points outputs
 	for c := 0; c < cols; c++ {
@@ -356,7 +355,6 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 			spOut, err = k.m.Observe(k.spNext.x.ColView(c), u, nil)
 		} else {
 			spOut, err = k.m.Observe(k.spNext.x.ColView(c), u, k.r.Sample())
-			//k.spNext.x.ColView(c).(*mat.VecDense).SliceVec(in+qLen, in+qLen+rLen))
 		}
 		if err != nil {
 			return nil, fmt.Errorf("Failed to observe sigma point output: %v", err)

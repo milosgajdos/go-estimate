@@ -132,7 +132,7 @@ func main() {
 	z := new(mat.VecDense)
 	// filter initial estimate
 	var est filter.Estimate
-	est, err = estimate.NewBase(x, nil)
+	est, err = estimate.NewBase(x)
 	if err != nil {
 		log.Fatalf("Failed to create initial estimate: %v", err)
 	}
@@ -167,25 +167,30 @@ func main() {
 		fmt.Printf("Measurement %d:\n%v\n", i, matrix.Format(z))
 
 		// propagate particle filters to the next step
-		pred, err := f.Predict(est.State(), u)
+		pred, err := f.Predict(est.Val(), u)
 		if err != nil {
 			log.Fatalf("Filter Prediction error: %v", err)
 		}
 
-		fmt.Printf("FILTER Output %d:\n%v\n", i, matrix.Format(pred.Output()))
-
 		// correct state estimate using measurement z
-		est, err = f.Update(est.State(), u, z)
+		est, err = f.Update(pred.Val(), u, z)
 		if err != nil {
 			log.Fatalf("Filter Correction error: %v", err)
 		}
 
+		// get corrected output
+		yFilter, err := ball.Observe(est.Val(), u, nil)
+		if err != nil {
+			log.Fatalf("Model Observation error: %v", err)
+		}
+		fmt.Printf("FILTER Output %d:\n%v\n", i, matrix.Format(yFilter))
+
 		// store results for plotting
 		filterOut.Set(i, 0, float64(i))
-		filterOut.Set(i, 1, est.Output().AtVec(0))
+		filterOut.Set(i, 1, est.Val().AtVec(0))
 
-		fmt.Printf("CORRECTED State  %d:\n%v\n", i, matrix.Format(est.State()))
-		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(est.Output()))
+		fmt.Printf("CORRECTED State  %d:\n%v\n", i, matrix.Format(est.Val()))
+		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(yFilter))
 		fmt.Println("----------------")
 
 		// resample every other step

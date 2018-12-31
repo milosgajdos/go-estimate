@@ -5,7 +5,6 @@ import (
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/matrix"
 	"github.com/milosgajdos83/go-filter/noise"
 	"gonum.org/v1/gonum/diff/fd"
 	"gonum.org/v1/gonum/mat"
@@ -54,7 +53,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	}
 
 	if q != nil {
-		fmt.Println("We have some process noise!")
+		//fmt.Println("We have some process noise!")
 		if q.Cov().Symmetric() != in {
 			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
 		}
@@ -63,7 +62,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	}
 
 	if r != nil {
-		fmt.Println("We have some output noise!")
+		//fmt.Println("We have some output noise!")
 		if r.Cov().Symmetric() != out {
 			return nil, fmt.Errorf("Invalid output noise dimension: %d", r.Cov().Symmetric())
 		}
@@ -81,13 +80,13 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("fFunc xNext:")
-			fmt.Println(matrix.Format(xNext))
+			//fmt.Println("fFunc xNext:")
+			//fmt.Println(matrix.Format(xNext))
 
 			for i := 0; i < len(xOut); i++ {
 				xOut[i] = xNext.At(i, 0)
 			}
-			fmt.Println("xOut:", xOut)
+			//fmt.Println("xOut:", xOut)
 		}
 	}
 	f := mat.NewDense(in, in, nil)
@@ -149,8 +148,8 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	fmt.Println("Predict(xNext)")
-	fmt.Println(matrix.Format(xNext))
+	//fmt.Println("Predict(xNext)")
+	//fmt.Println(matrix.Format(xNext))
 
 	// calculate Jacobian matrix
 	fd.Jacobian(k.f, k.fFunc(u), mat.Col(nil, 0, x), &fd.JacobianSettings{
@@ -158,8 +157,8 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		Concurrent: true,
 	})
 
-	fmt.Println("k.f Jacobian:")
-	fmt.Println(matrix.Format(k.f))
+	//fmt.Println("k.f Jacobian:")
+	//fmt.Println(matrix.Format(k.f))
 
 	cov := &mat.Dense{}
 	cov.Mul(k.p, k.f.T())
@@ -169,8 +168,8 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		cov.Add(cov, k.q.Cov())
 	}
 
-	fmt.Println("Predicted cov:")
-	fmt.Println(matrix.Format(cov))
+	//fmt.Println("Predicted cov:")
+	//fmt.Println(matrix.Format(cov))
 
 	// update EKF covariance matrix
 	n := k.pNext.Symmetric()
@@ -180,7 +179,7 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		}
 	}
 
-	return estimate.NewBaseWithCov(xNext, mat.NewVecDense(1, nil), k.pNext)
+	return estimate.NewBaseWithCov(xNext, k.pNext)
 }
 
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
@@ -198,15 +197,15 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("Failed to observe system output: %v", err)
 	}
 
-	fmt.Println("Update(yNext):")
-	fmt.Println(matrix.Format(yNext))
+	//fmt.Println("Update(yNext):")
+	//fmt.Println(matrix.Format(yNext))
 
 	// innovation vector
 	inn := &mat.VecDense{}
 	inn.SubVec(z, yNext)
 
-	fmt.Println("inn:")
-	fmt.Println(matrix.Format(inn))
+	//fmt.Println("inn:")
+	//fmt.Println(matrix.Format(inn))
 
 	// calculate Jacobian matrix
 	fd.Jacobian(k.h, k.hFunc(u), mat.Col(nil, 0, x), &fd.JacobianSettings{
@@ -214,15 +213,15 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		Concurrent: true,
 	})
 
-	fmt.Println("k.h Jacobian:")
-	fmt.Println(matrix.Format(k.h))
+	//fmt.Println("k.h Jacobian:")
+	//fmt.Println(matrix.Format(k.h))
 
 	pxy := mat.NewDense(in, out, nil)
 	pyy := mat.NewDense(out, out, nil)
 
 	// P*H'
-	fmt.Println("k.pNext:")
-	fmt.Println(matrix.Format(k.pNext))
+	//fmt.Println("k.pNext:")
+	//fmt.Println(matrix.Format(k.pNext))
 	pxy.Mul(k.pNext, k.h.T())
 
 	// Note: pxy = P * H' so we don't need to do the same Mul() again
@@ -240,14 +239,14 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)
 
-	fmt.Println("gain:")
-	fmt.Println(matrix.Format(gain))
+	//fmt.Println("gain:")
+	//fmt.Println(matrix.Format(gain))
 
 	// update state x
 	corr := &mat.Dense{}
 	corr.Mul(gain, inn)
-	fmt.Println("correction:")
-	fmt.Println(matrix.Format(corr))
+	//fmt.Println("correction:")
+	//fmt.Println(matrix.Format(corr))
 	x.(*mat.VecDense).AddVec(x, corr.ColView(0))
 
 	// Joseph form update
@@ -289,7 +288,7 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		}
 	}
 
-	return estimate.NewBaseWithCov(x, mat.NewVecDense(1, nil), k.p)
+	return estimate.NewBaseWithCov(x, k.p)
 }
 
 // Run runs one step of EKF for given state x, input u and measurement z.
@@ -301,7 +300,7 @@ func (k *EKF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, err
 	}
 
-	est, err := k.Update(pred.State(), u, z)
+	est, err := k.Update(pred.Val(), u, z)
 	if err != nil {
 		return nil, err
 	}

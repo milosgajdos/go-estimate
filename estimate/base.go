@@ -8,74 +8,54 @@ import (
 
 // Base is base estimate
 type Base struct {
-	// state is system state
-	state *mat.VecDense
-	// output is system output
-	output *mat.VecDense
-	// cov is state covariance
+	// val is estimated value
+	val *mat.VecDense
+	// cov is estimated covariance
 	cov *mat.SymDense
 }
 
-// NewBase returns base information estimate given state and output
-func NewBase(state, output mat.Vector) (*Base, error) {
-	s := &mat.VecDense{}
-	if state != nil {
-		s.CloneVec(state)
+// NewBase returns base estimate given val
+func NewBase(val mat.Vector) (*Base, error) {
+	v := &mat.VecDense{}
+	if val != nil {
+		v.CloneVec(val)
 	}
 
-	o := &mat.VecDense{}
-	if output != nil {
-		o.CloneVec(output)
-	}
-
-	c := mat.NewSymDense(s.Len(), nil)
+	c := mat.NewSymDense(v.Len(), nil)
 
 	return &Base{
-		state:  s,
-		output: o,
-		cov:    c,
+		val: v,
+		cov: c,
 	}, nil
 }
 
 // NewBaseWithCov returns base information estimate given state, output and covariance
-func NewBaseWithCov(state, output mat.Vector, cov mat.Symmetric) (*Base, error) {
-	rs, _ := state.Dims()
+func NewBaseWithCov(val mat.Vector, cov mat.Symmetric) (*Base, error) {
+	rv, _ := val.Dims()
 	rc := cov.Symmetric()
 
-	if rs != rc {
-		return nil, fmt.Errorf("Invalid dimensions. State: %d, Cov: %d x %d", rs, rc, rc)
+	if rv != rc {
+		return nil, fmt.Errorf("Invalid dimensions. Val: %d, Cov: %d x %d", rv, rc, rc)
 	}
 
-	s := &mat.VecDense{}
-	s.CloneVec(state)
-
-	o := &mat.VecDense{}
-	o.CloneVec(output)
+	v := &mat.VecDense{}
+	v.CloneVec(val)
 
 	c := mat.NewSymDense(cov.Symmetric(), nil)
 	c.CopySym(cov)
 
 	return &Base{
-		state:  s,
-		output: o,
-		cov:    c,
+		val: v,
+		cov: c,
 	}, nil
 }
 
-// State returns state estimate
-func (b *Base) State() mat.Vector {
-	s := &mat.VecDense{}
-	s.CloneVec(b.state)
+// Val returns estimated value
+func (b *Base) Val() mat.Vector {
+	v := &mat.VecDense{}
+	v.CloneVec(b.val)
 
-	return s
-}
-
-// Output returns output estimate
-func (b *Base) Output() mat.Vector {
-	o := &mat.VecDense{}
-	o.CloneVec(b.output)
-
-	return o
+	return v
 }
 
 // Cov returns covariance estimate

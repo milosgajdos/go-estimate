@@ -4,13 +4,13 @@ import "gonum.org/v1/gonum/mat"
 
 // Filter is a dynamical system filter.
 type Filter interface {
-	// Predict estimates the next system output
+	// Predict estimates the next internal state of the system
 	Predict(mat.Vector, mat.Vector) (Estimate, error)
 	// Update updates the system state based on external measurement
 	Update(mat.Vector, mat.Vector, mat.Vector) (Estimate, error)
 }
 
-// Propagator propagates internal state of the system
+// Propagator propagates internal state of the system to the next step
 type Propagator interface {
 	// Propagate propagates internal state of the system to the next step
 	Propagate(mat.Vector, mat.Vector, mat.Vector) (mat.Vector, error)
@@ -42,11 +42,9 @@ type InitCond interface {
 
 // Estimate is dynamical system filter estimate
 type Estimate interface {
-	// State returns state estimate
-	State() mat.Vector
-	// Output returns output estimate
-	Output() mat.Vector
-	// Cov returns state covariance
+	// Val returns estimate value
+	Val() mat.Vector
+	// Cov returns estimate covariance
 	Cov() mat.Symmetric
 }
 
@@ -54,10 +52,10 @@ type Estimate interface {
 type Noise interface {
 	// Mean returns noise mean
 	Mean() []float64
-	// Cov returns noise covariance matrix
+	// Cov returns covariance matrix of the noise
 	Cov() mat.Symmetric
 	// Sample returns a sample of the noise
 	Sample() mat.Vector
-	// Reset resets noise
+	// Reset resets the noise
 	Reset()
 }

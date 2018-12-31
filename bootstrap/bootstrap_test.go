@@ -1,80 +1,16 @@
 package bootstrap
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
 	filter "github.com/milosgajdos83/go-filter"
+	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
 )
-
-type mockModel struct {
-	A *mat.Dense
-	B *mat.Dense
-	C *mat.Dense
-	D *mat.Dense
-}
-
-func (m *mockModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
-	_in, _out := m.Dims()
-	if u.Len() != _out {
-		return nil, fmt.Errorf("Invalid input vector")
-	}
-
-	if x.Len() != _in {
-		return nil, fmt.Errorf("Invalid state vector")
-	}
-
-	out := new(mat.Dense)
-	out.Mul(m.A, x)
-
-	outU := new(mat.Dense)
-	outU.Mul(m.B, u)
-
-	out.Add(out, outU)
-
-	if q != nil {
-		out.Add(out, q)
-	}
-
-	return out.ColView(0), nil
-}
-
-func (m *mockModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
-	_in, _out := m.Dims()
-	if u.Len() != _out {
-		return nil, fmt.Errorf("Invalid input vector")
-	}
-
-	if x.Len() != _in {
-		return nil, fmt.Errorf("Invalid state vector")
-	}
-
-	out := new(mat.Dense)
-	out.Mul(m.C, x)
-
-	outU := new(mat.Dense)
-	outU.Mul(m.D, u)
-
-	out.Add(out, outU)
-
-	if r != nil {
-		out.Add(out, r)
-	}
-
-	return out.ColView(0), nil
-}
-
-func (m *mockModel) Dims() (int, int) {
-	_, in := m.A.Dims()
-	out, _ := m.D.Dims()
-
-	return in, out
-}
 
 type invalidModel struct{}
 
@@ -90,23 +26,10 @@ func (m *invalidModel) Dims() (int, int) {
 	return -10, 8
 }
 
-type initCond struct {
-	state mat.Vector
-	cov   mat.Symmetric
-}
-
-func (c *initCond) State() mat.Vector {
-	return c.state
-}
-
-func (c *initCond) Cov() mat.Symmetric {
-	return c.cov
-}
-
 var (
-	okModel  *mockModel
+	okModel  *model.Base
 	badModel *invalidModel
-	ic       *initCond
+	ic       *model.InitCond
 	p        int
 	u        *mat.VecDense
 	z        *mat.VecDense
@@ -125,24 +48,21 @@ func setup() {
 	z = mat.NewVecDense(1, []float64{-1.5})
 
 	// initial condition
-	var state mat.Vector = mat.NewVecDense(2, []float64{1.0, 1.0})
-	var stateCov mat.Symmetric = mat.NewSymDense(2, []float64{1, 0, 0, 1})
+	initState := mat.NewVecDense(2, []float64{1.0, 3.0})
+	initCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
+	ic = model.NewInitCond(initState, initCov)
+
+	// state and output noise
+	q, _ = noise.NewGaussian([]float64{0, 0}, initCov)
+	r, _ = noise.NewGaussian([]float64{0}, mat.NewSymDense(1, []float64{0.25}))
 
 	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
 	B := mat.NewDense(2, 1, []float64{0.5, 1.0})
 	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
 	D := mat.NewDense(1, 1, []float64{0.0})
 
-	okModel = &mockModel{A, B, C, D}
+	okModel = &model.Base{A: A, B: B, C: C, D: D}
 	badModel = &invalidModel{}
-
-	q, _ = noise.NewZero(state.Len())
-	r, _ = noise.NewZero(z.Len())
-
-	ic = &initCond{
-		state: state,
-		cov:   stateCov,
-	}
 }
 
 func TestMain(m *testing.M) {
@@ -232,15 +152,9 @@ func TestUpdate(t *testing.T) {
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	// incorrect state dimensions
-	_x := mat.NewVecDense(3, nil)
-	est, err := f.Update(_x, u, z)
-	assert.Nil(est)
-	assert.Error(err)
-
 	data := []float64{1.0, 1.0}
 	x := mat.NewVecDense(2, data)
-	est, err = f.Update(x, u, z)
+	est, err := f.Update(x, u, z)
 	assert.NotNil(est)
 	assert.NoError(err)
 }

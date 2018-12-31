@@ -7,7 +7,7 @@ import (
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/kalman/ukf"
+	"github.com/milosgajdos83/go-filter/kalman/ekf"
 	"github.com/milosgajdos83/go-filter/matrix"
 	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
@@ -115,7 +115,7 @@ func main() {
 	filterOut := mat.NewDense(steps, 2, nil)
 
 	// initial condition
-	stateCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.05})
+	stateCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
 
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
@@ -130,14 +130,7 @@ func main() {
 	// initial condition of UKF
 	initCond := model.NewInitCond(x, stateCov)
 
-	// UKF configuration
-	c := &ukf.Config{
-		Alpha: 0.75,
-		Beta:  2.0,
-		Kappa: 3.0,
-	}
-
-	f, err := ukf.New(ball, initCond, nil, measNoise, c)
+	f, err := ekf.New(ball, initCond, nil, measNoise)
 	if err != nil {
 		log.Fatalf("Failed to create UKF filter: %v", err)
 	}

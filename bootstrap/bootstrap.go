@@ -120,17 +120,8 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	// observe system output in the next step
-	yNext, err := b.model.Observe(xNext, u, b.r.Sample())
-	if err != nil {
-		return nil, fmt.Errorf("System state observation failed: %v", err)
-	}
-
-	// TODO: Get rid of these allocations; maybe have xpred,ypred as part of bf state
 	r, c := b.x.Dims()
 	xpred := mat.NewDense(r, c, nil)
-	r, c = b.y.Dims()
-	ypred := mat.NewDense(r, c, nil)
 	// propagate filter particles to the next step and observe output
 	for c := range b.w {
 		xPartNext, err := b.model.Propagate(b.x.ColView(c), u, b.q.Sample())
@@ -139,18 +130,12 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		}
 		xpred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
 
-		yPartNext, err := b.model.Observe(xPartNext, u, b.r.Sample())
-		if err != nil {
-			return nil, fmt.Errorf("Particle state observation failed: %v", err)
-		}
-		ypred.Slice(0, yPartNext.Len(), c, c+1).(*mat.Dense).Copy(yPartNext)
 	}
 
 	// update filter particles and their observed outputs
 	b.x.Copy(xpred)
-	b.y.Copy(ypred)
 
-	return estimate.NewBase(xNext, yNext)
+	return estimate.NewBase(xNext)
 }
 
 // Update corrects state x using the measurement z, given control intput u and returns the corrected estimate.
@@ -160,12 +145,22 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("Invalid measurement size: %d", z.Len())
 	}
 
+	r, c := b.y.Dims()
+	ypred := mat.NewDense(r, c, nil)
+	for c := range b.w {
+		yPart, err := b.model.Observe(b.x.ColView(c), u, b.r.Sample())
+		if err != nil {
+			return nil, fmt.Errorf("Particle state observation failed: %v", err)
+		}
+		ypred.Slice(0, yPart.Len(), c, c+1).(*mat.Dense).Copy(yPart)
+	}
+
 	// Update particle weights:
 	// - calculate observation error for each particle output
 	// - multiply the resulting error with particle weight
 	for c := range b.w {
 		for r := 0; r < z.Len(); r++ {
-			b.inn[r] = z.At(r, 0) - b.y.ColView(c).AtVec(r)
+			b.inn[r] = z.At(r, 0) - ypred.ColView(c).AtVec(r)
 		}
 		b.w[c] = b.w[c] * math.Exp(b.errPDF.LogProb(b.inn))
 	}
@@ -184,13 +179,7 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		wavg = 0.0
 	}
 
-	// calculate corrected output estimate
-	output, err := b.model.Observe(x, u, nil)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to calculate output estimate: %v", err)
-	}
-
-	return estimate.NewBase(x, output)
+	return estimate.NewBase(x)
 }
 
 // Run runs one step of Bootstrap Filter for given state x, input u and measurement z.
@@ -202,7 +191,7 @@ func (b *Bootstrap) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, err
 	}
 
-	est, err := b.Update(pred.State(), u, z)
+	est, err := b.Update(pred.Val(), u, z)
 	if err != nil {
 		return nil, err
 	}

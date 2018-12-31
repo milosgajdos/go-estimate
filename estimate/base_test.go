@@ -10,42 +10,35 @@ import (
 func TestNewBase(t *testing.T) {
 	assert := assert.New(t)
 
-	state := mat.NewVecDense(2, []float64{1.0, 1.0})
-	output := mat.NewVecDense(1, []float64{1.0})
+	val := mat.NewVecDense(2, []float64{1.0, 1.0})
 	cov := mat.NewSymDense(2, []float64{1.0, 0.0, 0.0, 1.0})
 
-	b, err := NewBase(state, output)
+	b, err := NewBase(val)
 	assert.NotNil(b)
 	assert.NoError(err)
 
-	b, err = NewBaseWithCov(state, output, cov)
+	b, err = NewBaseWithCov(val, cov)
 	assert.NotNil(b)
 	assert.NoError(err)
 
-	b, err = NewBaseWithCov(state, output, mat.NewSymDense(1, []float64{1.0}))
+	b, err = NewBaseWithCov(val, mat.NewSymDense(1, []float64{1.0}))
 	assert.Nil(b)
 	assert.Error(err)
 }
 
-func TestStateOutputCov(t *testing.T) {
+func TestValCov(t *testing.T) {
 	assert := assert.New(t)
 
-	state := mat.NewVecDense(2, []float64{1.0, 2.0})
-	output := mat.NewVecDense(1, []float64{1.0})
+	val := mat.NewVecDense(2, []float64{1.0, 2.0})
 	cov := mat.NewSymDense(2, []float64{1.0, 2.0, 2.0, 4.0})
 
-	b, err := NewBaseWithCov(state, output, cov)
+	b, err := NewBaseWithCov(val, cov)
 	assert.NotNil(b)
 	assert.NoError(err)
 
-	s := b.State()
-	for i := 0; i < state.Len(); i++ {
-		assert.Equal(s.AtVec(i), b.State().AtVec(i))
-	}
-
-	o := b.Output()
-	for i := 0; i < output.Len(); i++ {
-		assert.Equal(o.AtVec(i), b.Output().AtVec(i))
+	v := b.Val()
+	for i := 0; i < val.Len(); i++ {
+		assert.Equal(v.AtVec(i), b.Val().AtVec(i))
 	}
 
 	r, c := b.Cov().Dims()

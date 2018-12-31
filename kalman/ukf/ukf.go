@@ -39,7 +39,7 @@ type Config struct {
 
 // UKF is Unscented (a.k.a. Sigma Point) Kalman Filter
 type UKF struct {
-	// m us UKF m
+	// m is UKF system model
 	m filter.Model
 	// q is state noise a.k.a. process noise
 	q filter.Noise
@@ -76,7 +76,7 @@ type UKF struct {
 // - c:      filter configuration
 // It returns error if either of the following conditions is met:
 // - invalid model is given: model dimensions must be positive integers
-// - invalid state or output noise is given: noise covariance must either be nil or match model dimensions
+// - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 // - invalid sigma points parameters (alpha, beta, kappa) are supplied
 // - sigma points fail to be generated: due to covariance SVD factorizations failure
 func New(m filter.Model, init filter.InitCond, q, r filter.Noise, c *Config) (*UKF, error) {

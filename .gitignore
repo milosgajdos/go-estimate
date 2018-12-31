@@ -40,3 +40,4 @@ coverage.out
 # ignore HTML files produced by gosom
 *.html
 vendor/
+.DS_Store

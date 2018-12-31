@@ -86,7 +86,7 @@ func main() {
 	D := mat.NewDense(1, 1, []float64{0.0})
 
 	// ball is the model of the system we will simulate
-	ball, err := model.NewFall(A, B, C, D)
+	ball, err := model.NewBase(A, B, C, D)
 	if err != nil {
 		log.Fatalf("Failed to created ball: %v", err)
 	}

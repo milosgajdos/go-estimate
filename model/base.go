@@ -42,8 +42,8 @@ func (c *InitCond) Cov() mat.Symmetric {
 	return cov
 }
 
-// Fall is a model of a falling ball
-type Fall struct {
+// Base is a basic model of a dynamical system
+type Base struct {
 	// A is internal state matrix
 	A *mat.Dense
 	// B is control matrix
@@ -54,13 +54,13 @@ type Fall struct {
 	D *mat.Dense
 }
 
-// NewFall creates a model of falling ball and returns it
-func NewFall(A, B, C, D *mat.Dense) (*Fall, error) {
-	return &Fall{A: A, B: B, C: C, D: D}, nil
+// NewBase creates a model of falling ball and returns it
+func NewBase(A, B, C, D *mat.Dense) (*Base, error) {
+	return &Base{A: A, B: B, C: C, D: D}, nil
 }
 
 // Propagate propagates internal state x of a falling ball to the next step
-func (b *Fall) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
+func (b *Base) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 	_in, _out := b.Dims()
 	if u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
@@ -86,7 +86,7 @@ func (b *Fall) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 }
 
 // Observe observes external state of falling ball given internal state x and input u
-func (b *Fall) Observe(x, u, r mat.Vector) (mat.Vector, error) {
+func (b *Base) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 	_in, _out := b.Dims()
 	if u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
@@ -112,7 +112,7 @@ func (b *Fall) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 }
 
 // Dims returns input and output model dimensions
-func (b *Fall) Dims() (int, int) {
+func (b *Base) Dims() (int, int) {
 	_, in := b.A.Dims()
 	out, _ := b.D.Dims()
 

@@ -6,13 +6,12 @@ import (
 	"log"
 
 	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/bootstrap"
 	"github.com/milosgajdos83/go-filter/estimate"
+	"github.com/milosgajdos83/go-filter/kalman/ekf"
 	"github.com/milosgajdos83/go-filter/matrix"
 	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/gonum/stat/distmv"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
@@ -106,9 +105,8 @@ func main() {
 	measOut := mat.NewDense(steps, 2, nil)
 
 	// measurement noise used to simulate real system
-	measMean := []float64{0.0}
 	measCov := mat.NewSymDense(1, []float64{0.25})
-	measNoise, err := noise.NewGaussian(measMean, measCov)
+	measNoise, err := noise.NewGaussian([]float64{0.0}, measCov)
 	if err != nil {
 		log.Fatalf("Failed to create measurement noise: %v", err)
 	}
@@ -117,24 +115,24 @@ func main() {
 	filterOut := mat.NewDense(steps, 2, nil)
 
 	// initial condition
-	stateCov := mat.NewSymDense(2, []float64{1, 0, 0, 1})
-	initCond := model.NewInitCond(x, stateCov)
-
-	p := 100
-	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
-	// create new bootstrap filter
-	f, err := bootstrap.New(ball, initCond, nil, nil, p, errPDF)
-	if err != nil {
-		log.Fatalf("Failed to create bootstrap filter: %v", err)
-	}
+	stateCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
 
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
+
 	// filter initial estimate
 	var est filter.Estimate
 	est, err = estimate.NewBase(x, nil)
 	if err != nil {
 		log.Fatalf("Failed to create initial estimate: %v", err)
+	}
+
+	// initial condition of UKF
+	initCond := model.NewInitCond(x, stateCov)
+
+	f, err := ekf.New(ball, initCond, nil, measNoise)
+	if err != nil {
+		log.Fatalf("Failed to create UKF filter: %v", err)
 	}
 
 	for i := 0; i < steps; i++ {
@@ -159,7 +157,9 @@ func main() {
 		modelOut.Set(i, 1, y.AtVec(0))
 
 		// measurement: z = y+noise
-		z.AddVec(y, measNoise.Sample())
+		noise := measNoise.Sample()
+		fmt.Println("NOISE:", matrix.Format(noise))
+		z.AddVec(y, noise)
 		// store results for plotting
 		measOut.Set(i, 0, float64(i))
 		measOut.Set(i, 1, z.AtVec(0))
@@ -172,28 +172,26 @@ func main() {
 			log.Fatalf("Filter Prediction error: %v", err)
 		}
 
-		fmt.Printf("FILTER Output %d:\n%v\n", i, matrix.Format(pred.Output()))
-
 		// correct state estimate using measurement z
-		est, err = f.Update(est.State(), u, z)
+		est, err = f.Update(pred.State(), u, z)
 		if err != nil {
-			log.Fatalf("Filter Correction error: %v", err)
+			log.Fatalf("Filter Udpate error: %v", err)
 		}
+
+		// get corrected output
+		yFilter, err := ball.Observe(est.State(), u, nil)
+		if err != nil {
+			log.Fatalf("Model Observation error: %v", err)
+		}
+		fmt.Printf("FILTER Output %d:\n%v\n", i, matrix.Format(yFilter))
 
 		// store results for plotting
 		filterOut.Set(i, 0, float64(i))
-		filterOut.Set(i, 1, est.Output().AtVec(0))
+		filterOut.Set(i, 1, yFilter.AtVec(0))
 
 		fmt.Printf("CORRECTED State  %d:\n%v\n", i, matrix.Format(est.State()))
-		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(est.Output()))
+		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(yFilter))
 		fmt.Println("----------------")
-
-		// resample every other step
-		if i%2 == 0 {
-			if err := f.Resample(0.0); err != nil {
-				log.Fatalf("Resampling failed: %v", err)
-			}
-		}
 	}
 
 	plt, err := NewSystemPlot(modelOut, measOut, filterOut)
@@ -201,7 +199,6 @@ func main() {
 		log.Fatalf("Failed to make plot: %v", err)
 	}
 
-	//name := "system.svg"
 	name := "system.png"
 	// Save the plot to a PNG file.
 	if err := plt.Save(10*vg.Inch, 10*vg.Inch, name); err != nil {

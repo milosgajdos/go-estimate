@@ -58,18 +58,18 @@ func TestInitCond(t *testing.T) {
 	}
 }
 
-func TestFall(t *testing.T) {
+func TestBase(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewFall(A, B, C, D)
+	f, err := NewBase(A, B, C, D)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
 
-func TestFallPropagate(t *testing.T) {
+func TestBasePropagate(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewFall(A, B, C, D)
+	f, err := NewBase(A, B, C, D)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -92,10 +92,10 @@ func TestFallPropagate(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestFallObserve(t *testing.T) {
+func TestBaseObserve(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewFall(A, B, C, D)
+	f, err := NewBase(A, B, C, D)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -118,10 +118,10 @@ func TestFallObserve(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestFallDims(t *testing.T) {
+func TestBaseDims(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewFall(A, B, C, D)
+	f, err := NewBase(A, B, C, D)
 	assert.NotNil(f)
 	assert.NoError(err)
 

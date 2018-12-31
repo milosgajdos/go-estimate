@@ -1,4 +1,4 @@
-package ukf
+package ekf
 
 import (
 	"os"
@@ -31,7 +31,6 @@ var (
 	ic       *model.InitCond
 	q        filter.Noise
 	r        filter.Noise
-	c        *Config
 	u        *mat.VecDense
 	z        *mat.VecDense
 )
@@ -56,12 +55,6 @@ func setup() {
 
 	okModel = &model.Base{A: A, B: B, C: C, D: D}
 	badModel = &invalidModel{}
-
-	c = &Config{
-		Alpha: 0.75,
-		Beta:  2.0,
-		Kappa: 3.0,
-	}
 }
 
 func TestMain(m *testing.M) {
@@ -73,22 +66,22 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func TestUKFNew(t *testing.T) {
+func TestEKFNew(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(okModel, ic, q, r, c)
+	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 
 	// invalid model: incorrect dimensions
-	f, err = New(badModel, ic, q, r, c)
+	f, err = New(badModel, ic, q, r)
 	assert.Nil(f)
 	assert.Error(err)
 
 	// invalid state noise dimension
 	_q := q
 	q, _ = noise.NewZero(20)
-	f, err = New(okModel, ic, q, r, c)
+	f, err = New(okModel, ic, q, r)
 	assert.Nil(f)
 	assert.Error(err)
 	q = _q
@@ -96,35 +89,21 @@ func TestUKFNew(t *testing.T) {
 	// invalid output noise dimension
 	_r := r
 	r, _ = noise.NewZero(20)
-	f, err = New(okModel, ic, q, r, c)
+	f, err = New(okModel, ic, q, r)
 	assert.Nil(f)
 	assert.Error(err)
 	r = _r
 
 	// zero [state and output] noise
-	f, err = New(okModel, ic, nil, nil, c)
+	f, err = New(okModel, ic, nil, nil)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
 
-func TestUKFGenSigmaPoints(t *testing.T) {
+func TestEKFPredict(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(okModel, ic, q, r, c)
-	//f, err := New(okModel, ic, nil, r, c)
-	assert.NotNil(f)
-	assert.NoError(err)
-
-	x := mat.VecDenseCopyOf(ic.State())
-	sp, err := f.GenSigmaPoints(x)
-	assert.NotNil(sp)
-	assert.NoError(err)
-}
-
-func TestUKFPredict(t *testing.T) {
-	assert := assert.New(t)
-
-	f, err := New(okModel, ic, q, r, c)
+	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -138,19 +117,12 @@ func TestUKFPredict(t *testing.T) {
 	est, err = f.Predict(x, _u)
 	assert.Nil(est)
 	assert.Error(err)
-
-	// sigma point propagation error
-	_x := mat.NewDense(5, 2, nil)
-	sp := &SigmaPoints{X: _x}
-	spp, err := f.propagateSigmaPoints(sp, _u)
-	assert.Nil(spp)
-	assert.Error(err)
 }
 
-func TestUKFUpdate(t *testing.T) {
+func TestEKFUpdate(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(okModel, ic, q, r, c)
+	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -172,10 +144,10 @@ func TestUKFUpdate(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestUKFRun(t *testing.T) {
+func TestEKFRun(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(okModel, ic, q, r, c)
+	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -197,10 +169,10 @@ func TestUKFRun(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestUKFCovariance(t *testing.T) {
+func TestEKFCovariance(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(okModel, ic, q, r, c)
+	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -208,10 +180,10 @@ func TestUKFCovariance(t *testing.T) {
 	assert.NotNil(cov)
 }
 
-func TestUKFGain(t *testing.T) {
+func TestEKFGain(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := New(okModel, ic, q, r, c)
+	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 

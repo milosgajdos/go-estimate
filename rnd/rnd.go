@@ -32,7 +32,7 @@ func WithCovN(cov mat.Symmetric, n int) (*mat.Dense, error) {
 	for i := range vals {
 		vals[i] = math.Sqrt(vals[i])
 	}
-	diag := mat.NewDiagonal(len(vals), vals)
+	diag := mat.NewDiagDense(len(vals), vals)
 	U.Mul(U, diag)
 
 	rows, _ := cov.Dims()

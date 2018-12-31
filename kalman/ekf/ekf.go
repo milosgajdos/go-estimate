@@ -221,7 +221,7 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	x.(*mat.VecDense).AddVec(x, corr.ColView(0))
 
 	// Joseph form update
-	eye := mat.NewDiagonal(x.Len(), nil)
+	eye := mat.NewDiagDense(x.Len(), nil)
 	for i := 0; i < x.Len(); i++ {
 		eye.SetDiag(i, 1.0)
 	}

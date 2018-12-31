@@ -190,7 +190,7 @@ func (k *UKF) GenSigmaPoints(x mat.Vector) (*SigmaPoints, error) {
 	for i := range vals {
 		vals[i] = math.Sqrt(vals[i])
 	}
-	diagSqrt := mat.NewDiagonal(len(vals), vals)
+	diagSqrt := mat.NewDiagDense(len(vals), vals)
 
 	r, c := SqrtCov.Dims()
 	// copy SqrtCov values into sigma points covariance matrix

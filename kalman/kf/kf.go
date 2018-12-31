@@ -17,10 +17,6 @@ type KF struct {
 	q filter.Noise
 	// r is output noise a.k.a. measurement noise
 	r filter.Noise
-	// f is KF propagation Jacobian
-	f *mat.Dense
-	// h is KF observation Jacobian
-	h *mat.Dense
 	// p is the UKF covariance matrix
 	p *mat.SymDense
 	// pNext is the UKF predicted covariance matrix
@@ -37,6 +33,7 @@ type KF struct {
 // - init:   initial condition of the filter
 // - q:      state a.k.a. process noise
 // - r:      output a.k.a. measurement noise
+// - c:      KF configuration (contains propagation and observation matrices)
 // It returns error if either of the following conditions is met:
 // - invalid model is given: model dimensions must be positive integers
 // - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
@@ -63,11 +60,25 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*KF, error) {
 		r, _ = noise.NewNone()
 	}
 
-	// propagation Jacobian
-	f := mat.NewDense(in, in, nil)
+	rows, cols := m.StateMatrix().Dims()
+	if rows != in || cols != in {
+		return nil, fmt.Errorf("Invalid propagation matrix dimensions: [%d x %d]", rows, cols)
+	}
 
-	// observation Jacobian
-	h := mat.NewDense(out, in, nil)
+	rows, cols = m.StateCtlMatrix().Dims()
+	if rows != in {
+		return nil, fmt.Errorf("Invalid control propagation matrix dimensions: [%d x %d]", rows, cols)
+	}
+
+	rows, cols = m.OutputMatrix().Dims()
+	if rows != out || cols != in {
+		return nil, fmt.Errorf("Invalid observation matrix dimensions: [%d x %d]", rows, cols)
+	}
+
+	rows, cols = m.OutputCtlMatrix().Dims()
+	if rows != out {
+		return nil, fmt.Errorf("Invalid control observation matrix dimensions: [%d x %d]", rows, cols)
+	}
 
 	// initialize covariance matrix to initial condition covariance
 	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
@@ -86,8 +97,6 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*KF, error) {
 		m:     m,
 		q:     q,
 		r:     r,
-		f:     f,
-		h:     h,
 		p:     p,
 		pNext: pNext,
 		inn:   inn,
@@ -105,7 +114,21 @@ func (k *KF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	// TODO: implement
+	cov := &mat.Dense{}
+	cov.Mul(k.m.StateMatrix(), k.p)
+	cov.Mul(cov, k.m.StateMatrix().T())
+
+	if _, ok := k.q.(*noise.None); !ok {
+		cov.Add(cov, k.q.Cov())
+	}
+
+	// update KF predicted covariance matrix
+	n := k.pNext.Symmetric()
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			k.pNext.SetSym(i, j, cov.At(i, j))
+		}
+	}
 
 	return estimate.NewBaseWithCov(xNext, k.pNext)
 }
@@ -113,14 +136,88 @@ func (k *KF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (k *KF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
-	_, out := k.m.Dims()
+	in, out := k.m.Dims()
 
 	if z.Len() != out {
 		return nil, fmt.Errorf("Invalid measurement supplied: %v", z)
 	}
 
-	// TODO: implement
+	// observe system output in the next step
+	yNext, err := k.m.Observe(x, u, k.r.Sample())
+	if err != nil {
+		return nil, fmt.Errorf("Failed to observe system output: %v", err)
+	}
 
+	// innovation vector
+	inn := &mat.VecDense{}
+	inn.SubVec(z, yNext)
+
+	pxy := mat.NewDense(in, out, nil)
+	pyy := mat.NewDense(out, out, nil)
+
+	// P*H'
+	pxy.Mul(k.pNext, k.m.OutputMatrix().T())
+
+	// Note: pxy = P * H' so we reuse the result here
+	// H*P*H'
+	pyy.Mul(k.m.OutputMatrix(), pxy)
+	// no measurement noise
+	if _, ok := k.r.(*noise.None); !ok {
+		pyy.Add(pyy, k.r.Cov())
+	}
+
+	// calculate Kalman gain
+	pyyInv := &mat.Dense{}
+	if err := pyyInv.Inverse(pyy); err != nil {
+		return nil, fmt.Errorf("Failed to calculat Pyy inverse: %v", err)
+	}
+	gain := &mat.Dense{}
+	gain.Mul(pxy, pyyInv)
+
+	// update state x
+	corr := &mat.Dense{}
+	corr.Mul(gain, inn)
+	x.(*mat.VecDense).AddVec(x, corr.ColView(0))
+
+	// Joseph form update
+	eye := mat.NewDiagonal(x.Len(), nil)
+	for i := 0; i < x.Len(); i++ {
+		eye.SetDiag(i, 1.0)
+	}
+	a := &mat.Dense{}
+	// K*H
+	a.Mul(gain, k.m.OutputMatrix())
+	// eye - K*H
+	a.Sub(eye, a)
+
+	// K*R*K'
+	pkrk := &mat.Dense{}
+	// if there is some output noise
+	if _, ok := k.r.(*noise.None); !ok {
+		kr := &mat.Dense{}
+		kr.Mul(gain, k.r.Cov())
+		pkrk.Mul(kr, gain.T())
+	}
+
+	ap := &mat.Dense{}
+	ap.Mul(a, k.pNext)
+	apa := &mat.Dense{}
+	apa.Mul(ap, a.T())
+
+	pCorr := &mat.Dense{}
+	if !pkrk.IsZero() {
+		pCorr.Add(apa, pkrk)
+	}
+
+	// update KF innovation vector
+	k.inn.CopyVec(inn)
+	k.k.Copy(gain)
+	// update KF covariance matrix
+	for i := 0; i < in; i++ {
+		for j := i; j < in; j++ {
+			k.p.SetSym(i, j, pCorr.At(i, j))
+		}
+	}
 	return estimate.NewBaseWithCov(x, k.p)
 }
 

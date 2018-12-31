@@ -12,14 +12,8 @@ import (
 	"gonum.org/v1/gonum/stat/distmv"
 )
 
-type invalidModel struct{}
-
-func (m *invalidModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
-	return new(mat.VecDense), nil
-}
-
-func (m *invalidModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
-	return new(mat.VecDense), nil
+type invalidModel struct {
+	filter.Model
 }
 
 func (m *invalidModel) Dims() (int, int) {
@@ -62,7 +56,7 @@ func setup() {
 	D := mat.NewDense(1, 1, []float64{0.0})
 
 	okModel = &model.Base{A: A, B: B, C: C, D: D}
-	badModel = &invalidModel{}
+	badModel = &invalidModel{okModel}
 }
 
 func TestMain(m *testing.M) {

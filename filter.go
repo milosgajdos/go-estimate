@@ -30,6 +30,14 @@ type Model interface {
 	Observer
 	// Dims returns input and output dimensions of the model
 	Dims() (in int, out int)
+	// StateMatrix returns state propagation matrix
+	StateMatrix() mat.Matrix
+	// StateCtlMatrix returns state propagation control matrix
+	StateCtlMatrix() mat.Matrix
+	// OutputMatrix returns observation matrix
+	OutputMatrix() mat.Matrix
+	// OutputCtlMatrix returns observation control matrix
+	OutputCtlMatrix() mat.Matrix
 }
 
 // InitCond is initial state condition of the filter

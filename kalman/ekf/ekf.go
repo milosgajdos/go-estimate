@@ -150,8 +150,8 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	})
 
 	cov := &mat.Dense{}
-	cov.Mul(k.p, k.f.T())
-	cov.Mul(cov, k.f)
+	cov.Mul(k.f, k.p)
+	cov.Mul(cov, k.f.T())
 
 	if _, ok := k.q.(*noise.None); !ok {
 		cov.Add(cov, k.q.Cov())
@@ -199,7 +199,7 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// P*H'
 	pxy.Mul(k.pNext, k.h.T())
 
-	// Note: pxy = P * H' so we don't need to do the same Mul() again
+	// Note: pxy = P * H' so we reuse the result here
 	// H*P*H'
 	pyy.Mul(k.h, pxy)
 	// no measurement noise
@@ -209,8 +209,9 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	// calculate Kalman gain
 	pyyInv := &mat.Dense{}
-	pyyInv.Inverse(pyy)
-
+	if err := pyyInv.Inverse(pyy); err != nil {
+		return nil, fmt.Errorf("Failed to calculat Pyy inverse: %v", err)
+	}
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)
 
@@ -232,26 +233,27 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	// K*R*K'
 	pkrk := &mat.Dense{}
+	// if there is some output noise
 	if _, ok := k.r.(*noise.None); !ok {
 		kr := &mat.Dense{}
-		kr.Mul(k.r.Cov(), gain.T())
-		pkrk.Mul(gain, kr)
+		kr.Mul(gain, k.r.Cov())
+		pkrk.Mul(kr, gain.T())
 	}
 
-	pa := &mat.Dense{}
-	pa.Mul(k.pNext, a.T())
+	ap := &mat.Dense{}
+	ap.Mul(a, k.pNext)
 	apa := &mat.Dense{}
-	apa.Mul(a, pa)
+	apa.Mul(ap, a.T())
 
 	pCorr := &mat.Dense{}
 	if !pkrk.IsZero() {
 		pCorr.Add(apa, pkrk)
 	}
 
-	// update UKF innovation vector
+	// update EKF innovation vector
 	k.inn.CopyVec(inn)
 	k.k.Copy(gain)
-	// update UKF covariance matrix
+	// update EKF covariance matrix
 	for i := 0; i < in; i++ {
 		for j := i; j < in; j++ {
 			k.p.SetSym(i, j, pCorr.At(i, j))

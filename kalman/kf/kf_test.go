@@ -11,14 +11,8 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
-type invalidModel struct{}
-
-func (m *invalidModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
-	return new(mat.VecDense), nil
-}
-
-func (m *invalidModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
-	return new(mat.VecDense), nil
+type invalidModel struct {
+	filter.Model
 }
 
 func (m *invalidModel) Dims() (int, int) {
@@ -54,7 +48,7 @@ func setup() {
 	D := mat.NewDense(1, 1, []float64{0.0})
 
 	okModel = &model.Base{A: A, B: B, C: C, D: D}
-	badModel = &invalidModel{}
+	badModel = &invalidModel{okModel}
 }
 
 func TestMain(m *testing.M) {
@@ -107,16 +101,16 @@ func TestKFPredict(t *testing.T) {
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	//x := mat.VecDenseCopyOf(ic.State())
-	//est, err := f.Predict(x, u)
-	//assert.NotNil(est)
-	//assert.NoError(err)
+	x := mat.VecDenseCopyOf(ic.State())
+	est, err := f.Predict(x, u)
+	assert.NotNil(est)
+	assert.NoError(err)
 
-	//// invalid input vector
-	//_u := mat.NewVecDense(3, nil)
-	//est, err = f.Predict(x, _u)
-	//assert.Nil(est)
-	//assert.Error(err)
+	// invalid input vector
+	_u := mat.NewVecDense(3, nil)
+	est, err = f.Predict(x, _u)
+	assert.Nil(est)
+	assert.Error(err)
 }
 
 func TestKFUpdate(t *testing.T) {
@@ -126,22 +120,22 @@ func TestKFUpdate(t *testing.T) {
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	//x := mat.VecDenseCopyOf(ic.State())
-	//est, err := f.Update(x, u, z)
-	//assert.NotNil(est)
-	//assert.NoError(err)
+	x := mat.VecDenseCopyOf(ic.State())
+	est, err := f.Update(x, u, z)
+	assert.NotNil(est)
+	assert.NoError(err)
 
-	//// invalid input vector
-	//_u := mat.NewVecDense(3, nil)
-	//est, err = f.Update(x, _u, z)
-	//assert.Nil(est)
-	//assert.Error(err)
+	// invalid input vector
+	_u := mat.NewVecDense(3, nil)
+	est, err = f.Update(x, _u, z)
+	assert.Nil(est)
+	assert.Error(err)
 
-	//// invalid measurement vector
-	//_z := mat.NewVecDense(3, nil)
-	//est, err = f.Update(x, u, _z)
-	//assert.Nil(est)
-	//assert.Error(err)
+	// invalid measurement vector
+	_z := mat.NewVecDense(3, nil)
+	est, err = f.Update(x, u, _z)
+	assert.Nil(est)
+	assert.Error(err)
 }
 
 func TestKFRun(t *testing.T) {
@@ -151,22 +145,22 @@ func TestKFRun(t *testing.T) {
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	//x := mat.VecDenseCopyOf(ic.State())
-	//est, err := f.Run(x, u, z)
-	//assert.NotNil(est)
-	//assert.NoError(err)
+	x := mat.VecDenseCopyOf(ic.State())
+	est, err := f.Run(x, u, z)
+	assert.NotNil(est)
+	assert.NoError(err)
 
-	//// invalid input vector
-	//_u := mat.NewVecDense(3, nil)
-	//est, err = f.Run(x, _u, z)
-	//assert.Nil(est)
-	//assert.Error(err)
+	// invalid input vector
+	_u := mat.NewVecDense(3, nil)
+	est, err = f.Run(x, _u, z)
+	assert.Nil(est)
+	assert.Error(err)
 
-	//// invalid measurement vector
-	//_z := mat.NewVecDense(3, nil)
-	//est, err = f.Run(x, u, _z)
-	//assert.Nil(est)
-	//assert.Error(err)
+	// invalid measurement vector
+	_z := mat.NewVecDense(3, nil)
+	est, err = f.Run(x, u, _z)
+	assert.Nil(est)
+	assert.Error(err)
 }
 
 func TestKFCovariance(t *testing.T) {

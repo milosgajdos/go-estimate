@@ -118,3 +118,35 @@ func (b *Base) Dims() (int, int) {
 
 	return in, out
 }
+
+// StateMatrix returns state propagation matrix
+func (b *Base) StateMatrix() mat.Matrix {
+	m := &mat.Dense{}
+	m.Clone(b.A)
+
+	return m
+}
+
+// StateCtlMatrix returns state propagation control matrix
+func (b *Base) StateCtlMatrix() mat.Matrix {
+	m := &mat.Dense{}
+	m.Clone(b.B)
+
+	return m
+}
+
+// OutputMatrix returns observation matrix
+func (b *Base) OutputMatrix() mat.Matrix {
+	m := &mat.Dense{}
+	m.Clone(b.C)
+
+	return m
+}
+
+// OutputCtlMatrix returns observation control matrix
+func (b *Base) OutputCtlMatrix() mat.Matrix {
+	m := &mat.Dense{}
+	m.Clone(b.D)
+
+	return m
+}

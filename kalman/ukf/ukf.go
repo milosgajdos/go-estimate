@@ -403,7 +403,9 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	// calculate Kalman gain
 	pyyInv := &mat.Dense{}
-	pyyInv.Inverse(pyy)
+	if err := pyyInv.Inverse(pyy); err != nil {
+		return nil, fmt.Errorf("Failed to calculat Pyy inverse: %v", err)
+	}
 
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)

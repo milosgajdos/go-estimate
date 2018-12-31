@@ -118,6 +118,26 @@ func TestBaseObserve(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestBaseSystemMatrices(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := NewBase(A, B, C, D)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	m := f.StateMatrix()
+	assert.True(mat.EqualApprox(m, A, 0.001))
+
+	m = f.StateCtlMatrix()
+	assert.True(mat.EqualApprox(m, B, 0.001))
+
+	m = f.OutputMatrix()
+	assert.True(mat.EqualApprox(m, C, 0.001))
+
+	m = f.OutputCtlMatrix()
+	assert.True(mat.EqualApprox(m, D, 0.001))
+}
+
 func TestBaseDims(t *testing.T) {
 	assert := assert.New(t)
 

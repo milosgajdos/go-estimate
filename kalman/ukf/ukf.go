@@ -403,7 +403,9 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	// calculate Kalman gain
 	pyyInv := &mat.Dense{}
-	pyyInv.Inverse(pyy)
+	if err := pyyInv.Inverse(pyy); err != nil {
+		return nil, fmt.Errorf("Failed to calculat Pyy inverse: %v", err)
+	}
 
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)
@@ -418,10 +420,10 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	x.(*mat.VecDense).AddVec(k.spNext.xMean, corr.ColView(0))
 
 	// correct UKF covariance
-	kr := &mat.Dense{}
-	kr.Mul(pyy, gain.T())
+	kp := &mat.Dense{}
+	kp.Mul(gain, pyy)
 	pCorr := &mat.Dense{}
-	pCorr.Mul(gain, kr)
+	pCorr.Mul(kp, gain.T())
 	pCorr.Sub(k.pNext, pCorr)
 
 	// update UKF innovation vector

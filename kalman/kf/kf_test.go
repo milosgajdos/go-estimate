@@ -1,4 +1,4 @@
-package ekf
+package kf
 
 import (
 	"os"
@@ -60,7 +60,7 @@ func TestMain(m *testing.M) {
 	os.Exit(retCode)
 }
 
-func TestEKFNew(t *testing.T) {
+func TestKFNew(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
@@ -94,7 +94,7 @@ func TestEKFNew(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestEKFPredict(t *testing.T) {
+func TestKFPredict(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
@@ -113,7 +113,7 @@ func TestEKFPredict(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestEKFUpdate(t *testing.T) {
+func TestKFUpdate(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
@@ -138,7 +138,7 @@ func TestEKFUpdate(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestEKFRun(t *testing.T) {
+func TestKFRun(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
@@ -163,7 +163,7 @@ func TestEKFRun(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestEKFCovariance(t *testing.T) {
+func TestKFCovariance(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
@@ -174,7 +174,7 @@ func TestEKFCovariance(t *testing.T) {
 	assert.NotNil(cov)
 }
 
-func TestEKFGain(t *testing.T) {
+func TestKFGain(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)

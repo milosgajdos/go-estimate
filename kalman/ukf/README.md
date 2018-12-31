@@ -4,4 +4,4 @@ This package implements [Unscented Kalman Filter](https://en.wikipedia.org/wiki/
 
 # Example output
 
-<img src="./system.png" alt="Unscented Kalman Filter in action" width="200">
+<img src="../../examples/ukf/system.png" alt="Unscented Kalman Filter in action" width="200">

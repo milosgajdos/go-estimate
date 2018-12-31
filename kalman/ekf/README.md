@@ -4,4 +4,4 @@ This package implements [Extended Kalman Filter](https://en.wikipedia.org/wiki/K
 
 # Example output
 
-<img src="./system.png" alt="Extended Kalman Filter in action" width="200">
+<img src="../../examples/ekf/system.png" alt="Extended Kalman Filter in action" width="200">

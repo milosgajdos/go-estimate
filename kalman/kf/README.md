@@ -4,4 +4,4 @@ This package implements [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_fil
 
 # Example output
 
-<img src="./system.png" alt="Kalman Filter in action" width="200">
+<img src="../../examples/kf/system.png" alt="Kalman Filter in action" width="200">

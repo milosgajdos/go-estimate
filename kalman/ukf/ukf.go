@@ -420,10 +420,10 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	x.(*mat.VecDense).AddVec(k.spNext.xMean, corr.ColView(0))
 
 	// correct UKF covariance
-	kr := &mat.Dense{}
-	kr.Mul(pyy, gain.T())
+	kp := &mat.Dense{}
+	kp.Mul(gain, pyy)
 	pCorr := &mat.Dense{}
-	pCorr.Mul(gain, kr)
+	pCorr.Mul(kp, gain.T())
 	pCorr.Sub(k.pNext, pCorr)
 
 	// update UKF innovation vector

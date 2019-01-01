@@ -32,7 +32,7 @@ $ make test
 
 # Examples
 
-The package ships few [example](example) programs which demonstrate the basic usage of the libraries.
+The package ships few [example](examples) programs which demonstrate the basic usage of the libraries.
 
 You can build the examples by running the following command:
 ```shell

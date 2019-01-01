@@ -10,7 +10,7 @@ examples: builddir
 		go build -o "$(BUILDPATH)/$$example" "examples/$$example/$$example.go"; \
 	done
 
-all: examples
+all: dep check test examples
 
 builddir:
 	mkdir -p $(BUILDPATH)

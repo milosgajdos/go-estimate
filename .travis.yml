@@ -1,17 +1,11 @@
 language: go
 go:
-  - "1.9"
   - "1.10"
-
-before_install:
-  - go get github.com/stretchr/testify/assert
-  - go get github.com/golang/lint/golint
+  - "1.11"
 
 before_script:
-  - wget -O- https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-
-install:
-  - go get -d -v ./... && go build -v ./...
+  - go get github.com/stretchr/testify/assert
+  - make godep
 
 script:
   - make all

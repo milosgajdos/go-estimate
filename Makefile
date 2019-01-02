@@ -4,6 +4,7 @@ INSTALL=go install
 BUILDPATH=./_build
 PACKAGES=$(shell go list ./... | grep -v /examples/)
 EXAMPLES=$(shell find examples/* -maxdepth 0 -type d -exec basename {} \;)
+GO111MODULE=on
 
 examples: builddir
 	for example in $(EXAMPLES); do \
@@ -25,7 +26,7 @@ godep:
 	wget -O- https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 dep:
-	dep ensure -v
+	go mod vendor || dep ensure -v
 
 check:
 	for pkg in ${PACKAGES}; do \

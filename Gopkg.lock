@@ -51,11 +51,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a73d08a7593d25b276854aeb64ebf0d2a0ff40200ce0999f431a537b4c4f558c"
+  digest = "1:d84a138d44600d5a9d7d5b9611dcf291add59cef9e01bd4d451076facd2670ba"
   name = "github.com/milosgajdos83/matrix"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a22c5ed5e3b0f327b1a2a2f1f703da374208b1b5"
+  revision = "c17e6c71f6e2624e87942b5958ea698c2e9d4026"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -106,7 +106,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5d64c288b9d107ea46a989d7a0287da5d97f8f21ec95130e518f974579bcc74f"
+  digest = "1:98b522a43eef5dcd89d28ef9fc7a5da3c3e4c315ce7c12bff7dc0d7998544d28"
   name = "gonum.org/v1/gonum"
   packages = [
     "blas",
@@ -132,7 +132,7 @@
     "stat/distuv",
   ]
   pruneopts = "UT"
-  revision = "d9936c37d4be019d7a9c56525078beb0bceb90e8"
+  revision = "16380329fcd8f07227b82c1c92cadea7a1bef000"
 
 [[projects]]
   branch = "master"

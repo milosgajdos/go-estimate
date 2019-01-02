@@ -1,9 +1,9 @@
-package rnd
+package rand
 
 import (
 	"fmt"
 	"math"
-	"math/rand"
+	rnd "math/rand"
 	"sort"
 
 	"gonum.org/v1/gonum/floats"
@@ -38,7 +38,7 @@ func WithCovN(cov mat.Symmetric, n int) (*mat.Dense, error) {
 	rows, _ := cov.Dims()
 	data := make([]float64, rows*n)
 	for i := range data {
-		data[i] = rand.NormFloat64()
+		data[i] = rnd.NormFloat64()
 	}
 	samples := mat.NewDense(rows, n, data)
 	samples.Mul(U, samples)

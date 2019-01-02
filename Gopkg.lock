@@ -50,6 +50,14 @@
   revision = "f52c8a71aff06ab8df41843d33ab167b36c971cd"
 
 [[projects]]
+  branch = "master"
+  digest = "1:a73d08a7593d25b276854aeb64ebf0d2a0ff40200ce0999f431a537b4c4f558c"
+  name = "github.com/milosgajdos83/matrix"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a22c5ed5e3b0f327b1a2a2f1f703da374208b1b5"
+
+[[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
@@ -150,6 +158,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/milosgajdos83/matrix",
     "github.com/stretchr/testify/assert",
     "golang.org/x/exp/rand",
     "gonum.org/v1/gonum/diff/fd",

@@ -6,9 +6,9 @@ import (
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/matrix"
 	"github.com/milosgajdos83/go-filter/noise"
-	"github.com/milosgajdos83/go-filter/rnd"
+	"github.com/milosgajdos83/go-filter/rand"
+	"github.com/milosgajdos83/matrix"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
@@ -83,7 +83,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise, p int, pdf dis
 	}
 
 	// draw particles from distribution with covariance init.Cov()
-	x, err := rnd.WithCovN(init.Cov(), p)
+	x, err := rand.WithCovN(init.Cov(), p)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
 	}
@@ -205,8 +205,8 @@ func (b *Bootstrap) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 // It returns error if it fails to generate new filter particles.
 func (b *Bootstrap) Resample(alpha float64) error {
 	// randomly pick new particles based on their weights
-	// rnd.RouletteDrawN returns a slice of column indices to b.x
-	indices, err := rnd.RouletteDrawN(b.w, len(b.w))
+	// rand.RouletteDrawN returns a slice of column indices to b.x
+	indices, err := rand.RouletteDrawN(b.w, len(b.w))
 	if err != nil {
 		return fmt.Errorf("Failed to sample filter particles: %v", err)
 	}
@@ -233,7 +233,7 @@ func (b *Bootstrap) Resample(alpha float64) error {
 	}
 
 	// randomly draw values with given particle covariance
-	m, err := rnd.WithCovN(cov, cols)
+	m, err := rand.WithCovN(cov, cols)
 	if err != nil {
 		return fmt.Errorf("Failed to draw random particle pertrubations: %v", err)
 	}

@@ -14,9 +14,6 @@ install:
   - go get -d -v ./... && go build -v ./...
 
 script:
-  - make dep
-  - make check
-  - make test
   - make all
 
 after_success:

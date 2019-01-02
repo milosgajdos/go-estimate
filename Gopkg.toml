@@ -41,6 +41,10 @@
   branch = "master"
   name = "gonum.org/v1/plot"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/milosgajdos83/matrix"
+
 [prune]
   go-tests = true
   unused-packages = true

@@ -6,8 +6,8 @@ import (
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/matrix"
 	"github.com/milosgajdos83/go-filter/noise"
+	"github.com/milosgajdos83/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 

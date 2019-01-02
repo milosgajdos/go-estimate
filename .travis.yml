@@ -4,7 +4,7 @@ go:
   - "1.11"
 
 before_script:
-  - go get github.com/stretchr/testify/assert
+  - go get github.com/golang/lint/golint
   - make godep
 
 script:

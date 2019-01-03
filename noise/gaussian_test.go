@@ -27,12 +27,14 @@ func TestNewGaussian(t *testing.T) {
 	// invalid mean
 	mean := []float64{2}
 	cov := mat.NewSymDense(2, []float64{1, 0.1, 0.1, 1})
-	assert.Panics(func() { NewGaussian(mean, cov) })
+	g, err := NewGaussian(mean, cov)
+	assert.Nil(g)
+	assert.Error(err)
 
 	// invalid covariance: not positive definite
 	mean = []float64{2, 3}
 	cov = mat.NewSymDense(2, []float64{1, 2, 2, 1})
-	g, err := NewGaussian(mean, cov)
+	g, err = NewGaussian(mean, cov)
 	assert.Nil(g)
 	assert.Error(err)
 }

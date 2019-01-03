@@ -19,6 +19,10 @@ type Gaussian struct {
 // NewGaussian creates new Gaussian noise with given mean and covariance.
 // It returns error if it fails to create Gaussian distribution handle.
 func NewGaussian(mean []float64, cov mat.Symmetric) (*Gaussian, error) {
+	if len(mean) != cov.Symmetric() {
+		return nil, fmt.Errorf("Incorrect dimensions. Mean: %d, Cov [%d x %d]", len(mean), cov.Symmetric(), cov.Symmetric())
+	}
+
 	dist, ok := newGaussianDist(mean, cov)
 	if !ok {
 		return nil, fmt.Errorf("Failed to create new Gaussian noise")

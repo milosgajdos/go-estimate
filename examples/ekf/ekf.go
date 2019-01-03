@@ -91,10 +91,6 @@ func main() {
 		log.Fatalf("Failed to created ball: %v", err)
 	}
 
-	// initial system state and control input
-	var x mat.Vector = mat.NewVecDense(2, []float64{100.0, 0.0})
-	u := mat.NewVecDense(1, []float64{-1.0})
-
 	// number of simulation steps
 	steps := 14
 
@@ -114,15 +110,25 @@ func main() {
 	// output corrected by filter
 	filterOut := mat.NewDense(steps, 2, nil)
 
+	// initial system state and control input
+	var x mat.Vector = mat.NewVecDense(2, []float64{100.0, 0.0})
+	var u mat.Vector = mat.NewVecDense(1, []float64{-1.0})
+
 	// initial condition
 	stateCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
+	stateNoise, err := noise.NewGaussian([]float64{0.0, 0.0}, stateCov)
+	if err != nil {
+		log.Fatalf("Failed to create state noise: %v", err)
+	}
 
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
 
 	// filter initial estimate
+	initX := &mat.VecDense{}
+	initX.AddVec(x, stateNoise.Sample())
 	var est filter.Estimate
-	est, err = estimate.NewBase(x)
+	est, err = estimate.NewBase(initX)
 	if err != nil {
 		log.Fatalf("Failed to create initial estimate: %v", err)
 	}
@@ -134,6 +140,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create UKF filter: %v", err)
 	}
+
+	// measure filter correctness
+	filterErr := 0.0
 
 	for i := 0; i < steps; i++ {
 		// ground truth propagation
@@ -178,6 +187,17 @@ func main() {
 			log.Fatalf("Filter Udpate error: %v", err)
 		}
 
+		// calculate filter state error
+		xErr := &mat.Dense{}
+		xErr.Sub(x, est.Val())
+		pInv := &mat.Dense{}
+		pInv.Inverse(est.Cov())
+		xerrPinv := &mat.Dense{}
+		xerrPinv.Mul(xErr.T(), pInv)
+		res := &mat.Dense{}
+		res.Mul(xerrPinv, xErr)
+		filterErr += res.At(0, 0)
+
 		// get corrected output
 		yFilter, err := ball.Observe(est.Val(), u, nil)
 		if err != nil {
@@ -193,6 +213,8 @@ func main() {
 		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(yFilter))
 		fmt.Println("----------------")
 	}
+
+	fmt.Println("XERR:", filterErr)
 
 	plt, err := NewSystemPlot(modelOut, measOut, filterOut)
 	if err != nil {

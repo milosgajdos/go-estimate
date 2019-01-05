@@ -27,6 +27,13 @@ func NewSystemPlot(model, meas, filter *mat.Dense) (*plot.Plot, error) {
 	p.X.Label.Text = "time"
 	p.Y.Label.Text = "position"
 
+	legend, err := plot.NewLegend()
+	if err != nil {
+		log.Fatalf("Failed to create new plot legend")
+	}
+	legend.Top = true
+	p.Legend = legend
+
 	// Make a scatter plotter for model data
 	modelData := makePoints(model)
 	modelScatter, err := plotter.NewScatter(modelData)
@@ -92,7 +99,7 @@ func main() {
 	}
 
 	// number of simulation steps
-	steps := 14
+	steps := 50
 
 	// modelOut measurements i.e. true model output state
 	modelOut := mat.NewDense(steps, 2, nil)
@@ -101,7 +108,7 @@ func main() {
 	measOut := mat.NewDense(steps, 2, nil)
 
 	// measurement noise used to simulate real system
-	measCov := mat.NewSymDense(1, []float64{0.25})
+	measCov := mat.NewSymDense(1, []float64{100.0})
 	measNoise, err := noise.NewGaussian([]float64{0.0}, measCov)
 	if err != nil {
 		log.Fatalf("Failed to create measurement noise: %v", err)
@@ -129,7 +136,8 @@ func main() {
 
 	// filter initial estimate
 	initX := &mat.VecDense{}
-	initX.AddVec(x, stateNoise.Sample())
+	initX.CloneVec(x)
+	initX.SetVec(0, initX.AtVec(0)+stateNoise.Sample().At(0, 0))
 	var est filter.Estimate
 	est, err = estimate.NewBase(initX)
 	if err != nil {

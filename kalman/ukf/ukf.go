@@ -196,7 +196,6 @@ func (k *UKF) GenSigmaPoints(x mat.Vector) (*SigmaPoints, error) {
 	// copy SqrtCov values into sigma points covariance matrix
 	for i := 0; i < r; i++ {
 		for j := 0; j < c; j++ {
-			//cov.SetSym(i, j, SqrtCov.At(i, j))
 			cov.SetSym(i, j, diagSqrt.At(i, j))
 		}
 	}

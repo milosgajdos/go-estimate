@@ -32,7 +32,9 @@ func NewSystemPlot(model, meas, filter *mat.Dense) (*plot.Plot, error) {
 		log.Fatalf("Failed to create new plot legend")
 	}
 	legend.Top = true
+
 	p.Legend = legend
+	p.X.Max = 55
 
 	// Make a scatter plotter for model data
 	modelData := makePoints(model)

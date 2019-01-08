@@ -1,4 +1,4 @@
-package model
+package sim
 
 import (
 	"fmt"
@@ -42,8 +42,8 @@ func (c *InitCond) Cov() mat.Symmetric {
 	return cov
 }
 
-// Base is a basic model of a dynamical system
-type Base struct {
+// BaseModel is a basic model of a dynamical system
+type BaseModel struct {
 	// A is internal state matrix
 	A *mat.Dense
 	// B is control matrix
@@ -54,13 +54,13 @@ type Base struct {
 	D *mat.Dense
 }
 
-// NewBase creates a model of falling ball and returns it
-func NewBase(A, B, C, D *mat.Dense) (*Base, error) {
-	return &Base{A: A, B: B, C: C, D: D}, nil
+// NewBaseModel creates a model of falling ball and returns it
+func NewBaseModel(A, B, C, D *mat.Dense) (*BaseModel, error) {
+	return &BaseModel{A: A, B: B, C: C, D: D}, nil
 }
 
 // Propagate propagates internal state x of a falling ball to the next step
-func (b *Base) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
+func (b *BaseModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 	_in, _out := b.Dims()
 	if u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
@@ -86,7 +86,7 @@ func (b *Base) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 }
 
 // Observe observes external state of falling ball given internal state x and input u
-func (b *Base) Observe(x, u, r mat.Vector) (mat.Vector, error) {
+func (b *BaseModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 	_in, _out := b.Dims()
 	if u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
@@ -112,7 +112,7 @@ func (b *Base) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 }
 
 // Dims returns input and output model dimensions
-func (b *Base) Dims() (int, int) {
+func (b *BaseModel) Dims() (int, int) {
 	_, in := b.A.Dims()
 	out, _ := b.D.Dims()
 
@@ -120,7 +120,7 @@ func (b *Base) Dims() (int, int) {
 }
 
 // StateMatrix returns state propagation matrix
-func (b *Base) StateMatrix() mat.Matrix {
+func (b *BaseModel) StateMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.Clone(b.A)
 
@@ -128,7 +128,7 @@ func (b *Base) StateMatrix() mat.Matrix {
 }
 
 // StateCtlMatrix returns state propagation control matrix
-func (b *Base) StateCtlMatrix() mat.Matrix {
+func (b *BaseModel) StateCtlMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.Clone(b.B)
 
@@ -136,7 +136,7 @@ func (b *Base) StateCtlMatrix() mat.Matrix {
 }
 
 // OutputMatrix returns observation matrix
-func (b *Base) OutputMatrix() mat.Matrix {
+func (b *BaseModel) OutputMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.Clone(b.C)
 
@@ -144,7 +144,7 @@ func (b *Base) OutputMatrix() mat.Matrix {
 }
 
 // OutputCtlMatrix returns observation control matrix
-func (b *Base) OutputCtlMatrix() mat.Matrix {
+func (b *BaseModel) OutputCtlMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.Clone(b.D)
 

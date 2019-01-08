@@ -10,6 +10,9 @@ import (
 	"gonum.org/v1/gonum/mat"
 )
 
+// JacFunc defines jacobian function to calculate Jacobian matrix
+type JacFunc func(u mat.Vector) func(y, x []float64)
+
 // EKF is Extended Kalman Filter
 type EKF struct {
 	// m is EKF system model
@@ -18,13 +21,13 @@ type EKF struct {
 	q filter.Noise
 	// r is output noise a.k.a. measurement noise
 	r filter.Noise
-	// fFunc is propagation Jacobian function
-	fFunc func(u mat.Vector) func(y, x []float64)
-	// f is EKF propagation Jacobian
+	// FJacFn is propagation Jacobian function
+	FJacFn JacFunc
+	// f is EKF propagation matrix
 	f *mat.Dense
-	// hFunc is observation Jacobian function
-	hFunc func(u mat.Vector) func(y, x []float64)
-	// h is EKF observation Jacobian
+	// HJacFn is observation Jacobian function
+	HJacFn JacFunc
+	// h is EKF observation matrix
 	h *mat.Dense
 	// p is the UKF covariance matrix
 	p *mat.SymDense
@@ -69,7 +72,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	}
 
 	// propagation Jacobian
-	fFunc := func(u mat.Vector) func([]float64, []float64) {
+	fJacFn := func(u mat.Vector) func([]float64, []float64) {
 		q, _ := noise.NewZero(in)
 
 		return func(xOut, xNow []float64) {
@@ -87,7 +90,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	f := mat.NewDense(in, in, nil)
 
 	// observation Jacobian
-	hFunc := func(u mat.Vector) func([]float64, []float64) {
+	hJacFn := func(u mat.Vector) func([]float64, []float64) {
 		r, _ := noise.NewZero(out)
 
 		return func(y, xNow []float64) {
@@ -119,17 +122,17 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	k := mat.NewDense(in, out, nil)
 
 	return &EKF{
-		m:     m,
-		q:     q,
-		r:     r,
-		fFunc: fFunc,
-		f:     f,
-		hFunc: hFunc,
-		h:     h,
-		p:     p,
-		pNext: pNext,
-		inn:   inn,
-		k:     k,
+		m:      m,
+		q:      q,
+		r:      r,
+		FJacFn: fJacFn,
+		f:      f,
+		HJacFn: hJacFn,
+		h:      h,
+		p:      p,
+		pNext:  pNext,
+		inn:    inn,
+		k:      k,
 	}, nil
 }
 
@@ -143,8 +146,8 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("System state propagation failed: %v", err)
 	}
 
-	// calculate Jacobian matrix
-	fd.Jacobian(k.f, k.fFunc(u), mat.Col(nil, 0, x), &fd.JacobianSettings{
+	// calculate propagation Jacobian matrix
+	fd.Jacobian(k.f, k.FJacFn(u), mat.Col(nil, 0, x), &fd.JacobianSettings{
 		Formula:    fd.Central,
 		Concurrent: true,
 	})
@@ -178,17 +181,13 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	}
 
 	// observe system output in the next step
-	yNext, err := k.m.Observe(x, u, k.r.Sample())
+	y, err := k.m.Observe(x, u, k.r.Sample())
 	if err != nil {
 		return nil, fmt.Errorf("Failed to observe system output: %v", err)
 	}
 
-	// innovation vector
-	inn := &mat.VecDense{}
-	inn.SubVec(z, yNext)
-
-	// calculate Jacobian matrix
-	fd.Jacobian(k.h, k.hFunc(u), mat.Col(nil, 0, x), &fd.JacobianSettings{
+	// calculate observation Jacobian matrix
+	fd.Jacobian(k.h, k.HJacFn(u), mat.Col(nil, 0, x), &fd.JacobianSettings{
 		Formula:    fd.Central,
 		Concurrent: true,
 	})
@@ -214,6 +213,10 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	}
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)
+
+	// innovation vector
+	inn := &mat.VecDense{}
+	inn.SubVec(z, y)
 
 	// update state x
 	corr := &mat.Dense{}
@@ -280,12 +283,43 @@ func (k *EKF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 	return est, nil
 }
 
-// Covariance returns EKF covariance
-func (k *EKF) Covariance() mat.Symmetric {
+// Model returns EKF model
+func (k *EKF) Model() filter.Model {
+	return k.m
+}
+
+// StateNoise retruns state noise
+func (k *EKF) StateNoise() filter.Noise {
+	return k.q
+}
+
+// OutputNoise retruns output noise
+func (k *EKF) OutputNoise() filter.Noise {
+	return k.r
+}
+
+// Cov returns EKF covariance
+func (k *EKF) Cov() mat.Symmetric {
 	cov := mat.NewSymDense(k.p.Symmetric(), nil)
 	cov.CopySym(k.p)
 
 	return cov
+}
+
+// SetCov sets EKF covariance matrix to cov.
+// It returns error if either cov is nil or its dimensions are not the same as EKF covariance dimensions.
+func (k *EKF) SetCov(cov mat.Symmetric) error {
+	if cov == nil {
+		return fmt.Errorf("Invalid covariance matrix: %v", cov)
+	}
+
+	if cov.Symmetric() != k.p.Symmetric() {
+		return fmt.Errorf("Invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+	}
+
+	k.p.CopySym(cov)
+
+	return nil
 }
 
 // Gain returns Kalman gain

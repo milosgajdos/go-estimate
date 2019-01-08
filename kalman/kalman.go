@@ -9,8 +9,8 @@ import (
 type Kalman interface {
 	// filter.Filter is dynamical system filter
 	filter.Filter
-	// Covariance returns Kalman filter state covariance
-	Covariance() mat.Symmetric
+	// Cov returns Kalman filter state covariance
+	Cov() mat.Symmetric
 	// Gain returns Kalman filter gain
 	Gain() mat.Matrix
 }

@@ -2,91 +2,17 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"log"
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
 	"github.com/milosgajdos83/go-filter/kalman/ukf"
-	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
+	"github.com/milosgajdos83/go-filter/sim"
 	"github.com/milosgajdos83/matrix"
 	"gonum.org/v1/gonum/mat"
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
-	"gonum.org/v1/plot/vg/draw"
 )
-
-func NewSystemPlot(model, meas, filter *mat.Dense) (*plot.Plot, error) {
-	p, err := plot.New()
-	if err != nil {
-		return nil, err
-	}
-	p.Title.Text = "Falling Ball"
-	p.X.Label.Text = "time"
-	p.Y.Label.Text = "position"
-
-	legend, err := plot.NewLegend()
-	if err != nil {
-		log.Fatalf("Failed to create new plot legend")
-	}
-	legend.Top = true
-
-	p.Legend = legend
-	p.X.Max = 55
-
-	// Make a scatter plotter for model data
-	modelData := makePoints(model)
-	modelScatter, err := plotter.NewScatter(modelData)
-	if err != nil {
-		return nil, err
-	}
-	modelScatter.GlyphStyle.Color = color.RGBA{R: 255, B: 128, A: 255}
-	modelScatter.Shape = draw.PyramidGlyph{}
-	modelScatter.GlyphStyle.Radius = vg.Points(3)
-
-	p.Add(modelScatter)
-	p.Legend.Add("model", modelScatter)
-
-	// Make a scatter plotter for measurement data
-	measData := makePoints(meas)
-	measScatter, err := plotter.NewScatter(measData)
-	if err != nil {
-		return nil, err
-	}
-	measScatter.GlyphStyle.Color = color.RGBA{G: 255, A: 128}
-	measScatter.GlyphStyle.Radius = vg.Points(3)
-
-	p.Add(measScatter)
-	p.Legend.Add("measurement", measScatter)
-
-	// Make a scatter plotter for filter data
-	filterPoints := makePoints(filter)
-	filterScatter, err := plotter.NewScatter(filterPoints)
-	if err != nil {
-		log.Fatalf("Failed to create partcle scatter: %v", err)
-	}
-	filterScatter.GlyphStyle.Color = color.RGBA{R: 169, G: 169, B: 169}
-	filterScatter.Shape = draw.CrossGlyph{}
-	filterScatter.GlyphStyle.Radius = vg.Points(3)
-
-	p.Add(filterScatter)
-	p.Legend.Add("filtered", filterScatter)
-
-	return p, nil
-}
-
-func makePoints(m *mat.Dense) plotter.XYs {
-	r, _ := m.Dims()
-	pts := make(plotter.XYs, r)
-	for i := 0; i < r; i++ {
-		pts[i].X = m.At(i, 0)
-		pts[i].Y = m.At(i, 1)
-	}
-
-	return pts
-}
 
 func main() {
 	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
@@ -95,7 +21,7 @@ func main() {
 	D := mat.NewDense(1, 1, []float64{0.0})
 
 	// ball is the model of the system we will simulate
-	ball, err := model.NewBase(A, B, C, D)
+	ball, err := sim.NewBaseModel(A, B, C, D)
 	if err != nil {
 		log.Fatalf("Failed to created ball: %v", err)
 	}
@@ -131,7 +57,7 @@ func main() {
 	}
 
 	// initial condition of UKF
-	initCond := model.NewInitCond(x, stateCov)
+	initCond := sim.NewInitCond(x, stateCov)
 
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
@@ -233,7 +159,7 @@ func main() {
 
 	fmt.Println("XERR:", filterErr)
 
-	plt, err := NewSystemPlot(modelOut, measOut, filterOut)
+	plt, err := sim.New2DPlot(modelOut, measOut, filterOut)
 	if err != nil {
 		log.Fatalf("Failed to make plot: %v", err)
 	}

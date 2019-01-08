@@ -36,7 +36,7 @@ func main() {
 	measOut := mat.NewDense(steps, 2, nil)
 
 	// measurement noise used to simulate real system
-	measCov := mat.NewSymDense(1, []float64{100.0})
+	measCov := mat.NewSymDense(1, []float64{80.0})
 	measNoise, err := noise.NewGaussian([]float64{0.0}, measCov)
 	if err != nil {
 		log.Fatalf("Failed to create measurement noise: %v", err)
@@ -72,7 +72,8 @@ func main() {
 	// initial condition of UKF
 	initCond := sim.NewInitCond(x, stateCov)
 
-	f, err := ekf.New(ball, initCond, nil, measNoise)
+	iter := 2
+	f, err := ekf.NewIter(ball, initCond, nil, measNoise, iter)
 	if err != nil {
 		log.Fatalf("Failed to create UKF filter: %v", err)
 	}

@@ -1,12 +1,12 @@
-package bootstrap
+package bf
 
 import (
 	"os"
 	"testing"
 
 	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
+	"github.com/milosgajdos83/go-filter/sim"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
@@ -21,9 +21,9 @@ func (m *invalidModel) Dims() (int, int) {
 }
 
 var (
-	okModel  *model.Base
+	okModel  *sim.BaseModel
 	badModel *invalidModel
-	ic       *model.InitCond
+	ic       *sim.InitCond
 	p        int
 	u        *mat.VecDense
 	z        *mat.VecDense
@@ -33,7 +33,7 @@ var (
 )
 
 func setup() {
-	// BF parameters
+	// PF parameters
 	p = 10
 	outCov := mat.NewSymDense(1, []float64{0.25})
 	errPDF, _ = distmv.NewNormal([]float64{0}, outCov, nil)
@@ -44,7 +44,7 @@ func setup() {
 	// initial condition
 	initState := mat.NewVecDense(2, []float64{1.0, 3.0})
 	initCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
-	ic = model.NewInitCond(initState, initCov)
+	ic = sim.NewInitCond(initState, initCov)
 
 	// state and output noise
 	q, _ = noise.NewGaussian([]float64{0, 0}, initCov)
@@ -55,7 +55,7 @@ func setup() {
 	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
 	D := mat.NewDense(1, 1, []float64{0.0})
 
-	okModel = &model.Base{A: A, B: B, C: C, D: D}
+	okModel = &sim.BaseModel{A: A, B: B, C: C, D: D}
 	badModel = &invalidModel{okModel}
 }
 
@@ -199,6 +199,20 @@ func TestResample(t *testing.T) {
 
 	err = f.Resample(0.0)
 	assert.NoError(err)
+}
+
+func TestWeights(t *testing.T) {
+	assert := assert.New(t)
+
+	// create bootstrap filter
+	f, err := New(okModel, ic, q, r, p, errPDF)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	weights := f.Weights()
+	for i := range f.w {
+		assert.InDelta(f.w[i], weights.At(i, 0), 0.001)
+	}
 }
 
 func TestAlphaGauss(t *testing.T) {

@@ -238,12 +238,43 @@ func (k *KF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 	return est, nil
 }
 
-// Covariance returns KF covariance
-func (k *KF) Covariance() mat.Symmetric {
+// Model returns KF model
+func (k *KF) Model() filter.Model {
+	return k.m
+}
+
+// StateNoise retruns state noise
+func (k *KF) StateNoise() filter.Noise {
+	return k.q
+}
+
+// OutputNoise retruns output noise
+func (k *KF) OutputNoise() filter.Noise {
+	return k.r
+}
+
+// Cov returns KF covariance
+func (k *KF) Cov() mat.Symmetric {
 	cov := mat.NewSymDense(k.p.Symmetric(), nil)
 	cov.CopySym(k.p)
 
 	return cov
+}
+
+// SetCov sets KF covariance matrix to cov.
+// It returns error if either cov is nil or its dimensions are not the same as KF covariance dimensions.
+func (k *KF) SetCov(cov mat.Symmetric) error {
+	if cov == nil {
+		return fmt.Errorf("Invalid covariance matrix: %v", cov)
+	}
+
+	if cov.Symmetric() != k.p.Symmetric() {
+		return fmt.Errorf("Invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+	}
+
+	k.p.CopySym(cov)
+
+	return nil
 }
 
 // Gain returns Kalman gain

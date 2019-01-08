@@ -8,9 +8,10 @@
 
 This package offers a small suite of basic filtering algorithms written in Go. It currently provides the implementations of the following filters and estimators:
 
-* [Bootstrap Filter](https://en.wikipedia.org/wiki/Particle_filter#The_bootstrap_filter) also known as Particle filter
+* [Bootstrap Filter](https://en.wikipedia.org/wiki/Particle_filter#The_bootstrap_filter) also known as SIR Particle filter
 * [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter) also known as Linear Kalman Filter
-* [Extended Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter#Extended_Kalman_filter) also known as non-linear Kalman Filter
+* [Extended Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter#Extended_Kalman_filter) also known as Non-linear Kalman Filter
+* [Iterated Extended Kalman Filter](https://en.wikipedia.org/wiki/Extended_Kalman_filter#Iterated_extended_Kalman_filter)
 * [Unscented Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter#Unscented_Kalman_filter) also known as Sigma-point filter
 
 # Get started
@@ -46,11 +47,12 @@ Alternatively, you can also install the examples by either running `go install` 
 $ make install
 ```
 
+# TODO
+
+- [ ] [Square Root filter](https://en.wikipedia.org/wiki/Kalman_filter#Square_root_form)
+- [ ] [Information Filter](https://en.wikipedia.org/wiki/Kalman_filter#Information_filter)
+- [ ] [Smoothing](https://en.wikipedia.org/wiki/Kalman_filter#Fixed-interval_smoothers)
+
 # Contributing
 
 **YES PLEASE!**
-
-Please make sure you run the following command before you open a new PR:
-```shell
-$ make all
-```

@@ -455,12 +455,43 @@ func (k *UKF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 	return est, nil
 }
 
-// Covariance returns UKF covariance
-func (k *UKF) Covariance() mat.Symmetric {
+// Model returns UKF model
+func (k *UKF) Model() filter.Model {
+	return k.m
+}
+
+// StateNoise retruns state noise
+func (k *UKF) StateNoise() filter.Noise {
+	return k.q
+}
+
+// OutputNoise retruns output noise
+func (k *UKF) OutputNoise() filter.Noise {
+	return k.r
+}
+
+// Cov returns UKF covariance
+func (k *UKF) Cov() mat.Symmetric {
 	cov := mat.NewSymDense(k.p.Symmetric(), nil)
 	cov.CopySym(k.p)
 
 	return cov
+}
+
+// SetCov sets UKF covariance matrix to cov.
+// It returns error if either cov is nil or its dimensions are not the same as UKF covariance dimensions.
+func (k *UKF) SetCov(cov mat.Symmetric) error {
+	if cov == nil {
+		return fmt.Errorf("Invalid covariance matrix: %v", cov)
+	}
+
+	if cov.Symmetric() != k.p.Symmetric() {
+		return fmt.Errorf("Invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+	}
+
+	k.p.CopySym(cov)
+
+	return nil
 }
 
 // Gain returns Kalman gain

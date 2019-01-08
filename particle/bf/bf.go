@@ -1,4 +1,4 @@
-package bootstrap
+package bf
 
 import (
 	"fmt"
@@ -14,10 +14,10 @@ import (
 	"gonum.org/v1/gonum/stat/distmv"
 )
 
-// Bootstrap is a Bootstrap Filter (BF) aka Particle Filter
-// For more information about Bootstrap (Particle) Filter see:
-// https://en.wikipedia.org/wiki/Particle_filter
-type Bootstrap struct {
+// BF is a Bootstrap Filter a.k.a. SIR Particle Filter.
+// For more information about Bootrstrap Filter see:
+// https://en.wikipedia.org/wiki/Particle_filter#The_bootstrap_filter
+type BF struct {
 	// model is bootstrap filter model
 	model filter.Model
 	// w stores particle weights
@@ -39,7 +39,7 @@ type Bootstrap struct {
 	errPDF distmv.LogProber
 }
 
-// New creates new Bootstrap Filter with following parameters:
+// New creates new PF with following parameters and returns it:
 // - m:     system model
 // - init:  initial condition of the filter
 // - q:     state  noise a.k.a. process noise
@@ -47,7 +47,7 @@ type Bootstrap struct {
 // - p:     number of filter particles
 // - pdf:   Probability Density Function (PDF) of filter output error
 // It returns error if non-positive number of particles is given or if the particles fail to be generated.
-func New(m filter.Model, init filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*Bootstrap, error) {
+func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*BF, error) {
 	// must have at least one particle; can't be negative
 	if p <= 0 {
 		return nil, fmt.Errorf("Invalid particle count: %d", p)
@@ -83,7 +83,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise, p int, pdf dis
 	}
 
 	// draw particles from distribution with covariance init.Cov()
-	x, err := rand.WithCovN(init.Cov(), p)
+	x, err := rand.WithCovN(ic.Cov(), p)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
 	}
@@ -92,14 +92,14 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise, p int, pdf dis
 	// center particles around initial condition init.State()
 	for c := 0; c < cols; c++ {
 		for r := 0; r < rows; r++ {
-			x.Set(r, c, x.At(r, c)+init.State().AtVec(r))
+			x.Set(r, c, x.At(r, c)+ic.State().AtVec(r))
 		}
 	}
 
 	y := mat.NewDense(out, p, nil)
 	inn := make([]float64, out)
 
-	return &Bootstrap{
+	return &BF{
 		model:  m,
 		w:      w,
 		x:      x,
@@ -113,7 +113,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise, p int, pdf dis
 
 // Predict predicts the next output of the system given the state x and input u and returns it.
 // It returns error if it fails to propagate either the filter particles or x to the next state.
-func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
+func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// propagate input state to the next step
 	xNext, err := b.model.Propagate(x, u, b.q.Sample())
 	if err != nil {
@@ -140,7 +140,7 @@ func (b *Bootstrap) Predict(x, u mat.Vector) (filter.Estimate, error) {
 
 // Update corrects state x using the measurement z, given control intput u and returns the corrected estimate.
 // It returns error if it fails to calculate system output estimate or if the size of z is invalid.
-func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
+func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	if z.Len() != len(b.inn) {
 		return nil, fmt.Errorf("Invalid measurement size: %d", z.Len())
 	}
@@ -182,10 +182,10 @@ func (b *Bootstrap) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	return estimate.NewBase(x)
 }
 
-// Run runs one step of Bootstrap Filter for given state x, input u and measurement z.
+// Run runs one step of Particle Filter for given state x, input u and measurement z.
 // It corrects system state x using measurement z and returns new system estimate.
 // It returns error if it either fails to propagate or correct state x or its particles.
-func (b *Bootstrap) Run(x, u, z mat.Vector) (filter.Estimate, error) {
+func (b *BF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 	pred, err := b.Predict(x, u)
 	if err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ func (b *Bootstrap) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 // It generates new filter particles and replaces the existing ones with them.
 // If invalid (non-positive) alpha is provided we use optimal alpha for gaussian kernel.
 // It returns error if it fails to generate new filter particles.
-func (b *Bootstrap) Resample(alpha float64) error {
+func (b *BF) Resample(alpha float64) error {
 	// randomly pick new particles based on their weights
 	// rand.RouletteDrawN returns a slice of column indices to b.x
 	indices, err := rand.RouletteDrawN(b.w, len(b.w))
@@ -248,6 +248,14 @@ func (b *Bootstrap) Resample(alpha float64) error {
 	b.x.Add(b.x, m)
 
 	return nil
+}
+
+// Weights returns a vector containing PF particle weights
+func (b *BF) Weights() mat.Vector {
+	data := make([]float64, len(b.w))
+	copy(data, b.w)
+
+	return mat.NewVecDense(len(data), data)
 }
 
 // AlphaGauss computes optimal regulariation parameter for Gaussian kernel and returns it.

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/model"
 	"github.com/milosgajdos83/go-filter/noise"
+	"github.com/milosgajdos83/go-filter/sim"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/mat"
 )
@@ -20,9 +20,9 @@ func (m *invalidModel) Dims() (int, int) {
 }
 
 var (
-	okModel  *model.Base
+	okModel  *sim.BaseModel
 	badModel *invalidModel
-	ic       *model.InitCond
+	ic       *sim.InitCond
 	q        filter.Noise
 	r        filter.Noise
 	u        *mat.VecDense
@@ -36,7 +36,7 @@ func setup() {
 	// initial condition
 	initState := mat.NewVecDense(2, []float64{1.0, 3.0})
 	initCov := mat.NewSymDense(2, []float64{0.25, 0, 0, 0.25})
-	ic = model.NewInitCond(initState, initCov)
+	ic = sim.NewInitCond(initState, initCov)
 
 	// state and output noise
 	q, _ = noise.NewGaussian([]float64{0, 0}, initCov)
@@ -47,7 +47,7 @@ func setup() {
 	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
 	D := mat.NewDense(1, 1, []float64{0.0})
 
-	okModel = &model.Base{A: A, B: B, C: C, D: D}
+	okModel = &sim.BaseModel{A: A, B: B, C: C, D: D}
 	badModel = &invalidModel{okModel}
 }
 
@@ -163,15 +163,48 @@ func TestKFRun(t *testing.T) {
 	assert.Error(err)
 }
 
-func TestKFCovariance(t *testing.T) {
+func TestKFModel(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	cov := f.Covariance()
+	m := f.Model()
+	assert.NotNil(m)
+}
+
+func TestKFNoise(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, q, r)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	sn := f.StateNoise()
+	assert.NotNil(sn)
+
+	on := f.OutputNoise()
+	assert.NotNil(on)
+}
+func TestKFCov(t *testing.T) {
+	assert := assert.New(t)
+
+	f, err := New(okModel, ic, q, r)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	cov := f.Cov()
 	assert.NotNil(cov)
+
+	err = f.SetCov(nil)
+	assert.Error(err)
+
+	err = f.SetCov(mat.NewSymDense(30, nil))
+	assert.Error(err)
+
+	err = f.SetCov(mat.NewSymDense(f.p.Symmetric(), nil))
+	assert.NoError(err)
 }
 
 func TestKFGain(t *testing.T) {

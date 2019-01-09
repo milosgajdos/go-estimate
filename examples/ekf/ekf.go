@@ -69,12 +69,12 @@ func main() {
 		log.Fatalf("Failed to create initial estimate: %v", err)
 	}
 
-	// initial condition of UKF
+	// initial condition of EKF
 	initCond := sim.NewInitCond(x, stateCov)
 
 	f, err := ekf.New(ball, initCond, nil, measNoise)
 	if err != nil {
-		log.Fatalf("Failed to create UKF filter: %v", err)
+		log.Fatalf("Failed to create EKF filter: %v", err)
 	}
 
 	// measure filter correctness

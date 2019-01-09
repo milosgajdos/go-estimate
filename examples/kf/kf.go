@@ -56,7 +56,7 @@ func main() {
 		log.Fatalf("Failed to create state noise: %v", err)
 	}
 
-	// initial condition of UKF
+	// initial condition of KF
 	initCond := sim.NewInitCond(x, stateCov)
 
 	// z stores real system measurement: y+noise
@@ -75,7 +75,7 @@ func main() {
 	// create Kalman Filter
 	f, err := kf.New(ball, initCond, nil, measNoise)
 	if err != nil {
-		log.Fatalf("Failed to create UKF filter: %v", err)
+		log.Fatalf("Failed to create KF filter: %v", err)
 	}
 
 	// measure filter correctness

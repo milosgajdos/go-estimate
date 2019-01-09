@@ -201,6 +201,23 @@ func TestResample(t *testing.T) {
 	assert.NoError(err)
 }
 
+func TestParticles(t *testing.T) {
+	assert := assert.New(t)
+
+	// create bootstrap filter
+	f, err := New(okModel, ic, q, r, p, errPDF)
+	assert.NotNil(f)
+	assert.NoError(err)
+
+	p := f.Particles()
+	r, c := p.Dims()
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			assert.InDelta(f.x.At(i, j), p.At(i, j), 0.001)
+		}
+	}
+}
+
 func TestWeights(t *testing.T) {
 	assert := assert.New(t)
 

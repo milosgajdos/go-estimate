@@ -9,10 +9,10 @@
 This package offers a small suite of basic filtering algorithms written in Go. It currently provides the implementations of the following filters and estimators:
 
 * [Bootstrap Filter](https://en.wikipedia.org/wiki/Particle_filter#The_bootstrap_filter) also known as SIR Particle filter
-* [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter) also known as Linear Kalman Filter
-* [Extended Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter#Extended_Kalman_filter) also known as Non-linear Kalman Filter
-* [Iterated Extended Kalman Filter](https://en.wikipedia.org/wiki/Extended_Kalman_filter#Iterated_extended_Kalman_filter)
 * [Unscented Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter#Unscented_Kalman_filter) also known as Sigma-point filter
+* [Extended Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter#Extended_Kalman_filter) also known as Non-linear Kalman Filter
+  * [Iterated Extended Kalman Filter](https://en.wikipedia.org/wiki/Extended_Kalman_filter#Iterated_extended_Kalman_filter)
+* [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter) also known as Linear Kalman Filter
 
 # Get started
 
@@ -33,7 +33,7 @@ $ make test
 
 # Examples
 
-The package ships few [example](examples) programs which demonstrate the basic usage of the libraries.
+The project provides a few [example](examples) programs which demonstrate basic usage of the `go-filter` packages.
 
 You can build the examples by running the following command:
 ```shell
@@ -46,6 +46,10 @@ Alternatively, you can also install the examples by either running `go install` 
 ```shell
 $ make install
 ```
+
+Most of the examples are static i.e. they generate a plot which shows how filter estimates new values from the noise measurements.
+
+There are however [two](examples/bfgocv) [examples](examples/kfgocv) which use the wonderful [gocv](https://gocv.io/). They allow you to watch the filter live in action.
 
 # TODO
 

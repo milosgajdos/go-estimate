@@ -62,7 +62,7 @@ func NewBaseModel(A, B, C, D *mat.Dense) (*BaseModel, error) {
 // Propagate propagates internal state x of a falling ball to the next step
 func (b *BaseModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 	_in, _out := b.Dims()
-	if u.Len() != _out {
+	if u != nil && u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
 	}
 
@@ -73,10 +73,12 @@ func (b *BaseModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 	out := new(mat.Dense)
 	out.Mul(b.A, x)
 
-	outU := new(mat.Dense)
-	outU.Mul(b.B, u)
+	if u != nil && b.B != nil {
+		outU := new(mat.Dense)
+		outU.Mul(b.B, u)
 
-	out.Add(out, outU)
+		out.Add(out, outU)
+	}
 
 	if q != nil && q.Len() == _in {
 		out.Add(out, q)
@@ -88,7 +90,7 @@ func (b *BaseModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 // Observe observes external state of falling ball given internal state x and input u
 func (b *BaseModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 	_in, _out := b.Dims()
-	if u.Len() != _out {
+	if u != nil && u.Len() != _out {
 		return nil, fmt.Errorf("Invalid input vector")
 	}
 
@@ -99,10 +101,12 @@ func (b *BaseModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 	out := new(mat.Dense)
 	out.Mul(b.C, x)
 
-	outU := new(mat.Dense)
-	outU.Mul(b.D, u)
+	if u != nil && b.D != nil {
+		outU := new(mat.Dense)
+		outU.Mul(b.D, u)
 
-	out.Add(out, outU)
+		out.Add(out, outU)
+	}
 
 	if r != nil && r.Len() == _out {
 		out.Add(out, r)

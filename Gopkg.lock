@@ -74,6 +74,14 @@
   version = "v1.2.2"
 
 [[projects]]
+  digest = "1:7c74aa84445a23e60635357a67727585fa183c7c6b6119a9c778e0a65481a63a"
+  name = "gocv.io/x/gocv"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2ec65a33d136d139ab177b078e67e1ac9988db6d"
+  version = "v0.18.0"
+
+[[projects]]
   branch = "master"
   digest = "1:47bcbdf2a60a0bdd142f07f60771078857310fd1ededeb03956add7c7f6bef33"
   name = "golang.org/x/exp"
@@ -160,6 +168,7 @@
   input-imports = [
     "github.com/milosgajdos83/matrix",
     "github.com/stretchr/testify/assert",
+    "gocv.io/x/gocv",
     "golang.org/x/exp/rand",
     "gonum.org/v1/gonum/diff/fd",
     "gonum.org/v1/gonum/floats",

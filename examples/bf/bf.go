@@ -141,7 +141,6 @@ func main() {
 		log.Fatalf("Failed to make plot: %v", err)
 	}
 
-	//name := "system.svg"
 	name := "system.png"
 	// Save the plot to a PNG file.
 	if err := plt.Save(10*vg.Inch, 10*vg.Inch, name); err != nil {

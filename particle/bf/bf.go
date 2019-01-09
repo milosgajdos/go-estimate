@@ -179,6 +179,9 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		wavg = 0.0
 	}
 
+	// update filter particle outputs
+	b.y.Copy(ypred)
+
 	return estimate.NewBase(x)
 }
 
@@ -248,6 +251,14 @@ func (b *BF) Resample(alpha float64) error {
 	b.x.Add(b.x, m)
 
 	return nil
+}
+
+// Particles returns BF particles
+func (b *BF) Particles() mat.Matrix {
+	p := &mat.Dense{}
+	p.Clone(b.x)
+
+	return p
 }
 
 // Weights returns a vector containing PF particle weights

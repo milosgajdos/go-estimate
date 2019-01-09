@@ -12,7 +12,7 @@ import (
 )
 
 type invalidModel struct {
-	filter.Model
+	filter.DiscreteModel
 }
 
 func (m *invalidModel) Dims() (int, int) {

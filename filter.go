@@ -30,6 +30,13 @@ type Model interface {
 	Observer
 	// Dims returns input and output dimensions of the model
 	Dims() (in int, out int)
+}
+
+// DiscreteModel is a dynamical system whose state is driven by
+// static propagation and observation dynamics matrices
+type DiscreteModel interface {
+	// Model is a model of a dynamical system
+	Model
 	// StateMatrix returns state propagation matrix
 	StateMatrix() mat.Matrix
 	// StateCtlMatrix returns state propagation control matrix

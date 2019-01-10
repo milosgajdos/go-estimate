@@ -118,7 +118,7 @@ func (b *BaseModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 // Dims returns input and output model dimensions
 func (b *BaseModel) Dims() (int, int) {
 	_, in := b.A.Dims()
-	out, _ := b.D.Dims()
+	out, _ := b.C.Dims()
 
 	return in, out
 }
@@ -134,7 +134,9 @@ func (b *BaseModel) StateMatrix() mat.Matrix {
 // StateCtlMatrix returns state propagation control matrix
 func (b *BaseModel) StateCtlMatrix() mat.Matrix {
 	m := &mat.Dense{}
-	m.Clone(b.B)
+	if b.B != nil {
+		m.Clone(b.B)
+	}
 
 	return m
 }
@@ -150,7 +152,9 @@ func (b *BaseModel) OutputMatrix() mat.Matrix {
 // OutputCtlMatrix returns observation control matrix
 func (b *BaseModel) OutputCtlMatrix() mat.Matrix {
 	m := &mat.Dense{}
-	m.Clone(b.D)
+	if b.D != nil {
+		m.Clone(b.D)
+	}
 
 	return m
 }

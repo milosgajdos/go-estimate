@@ -34,12 +34,10 @@ func DrawMarker(img *gocv.Mat, center image.Point, c color.RGBA, d int) {
 
 func main() {
 	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
-	B := mat.NewDense(2, 1, []float64{0.0, 0.0})
 	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
-	D := mat.NewDense(1, 1, []float64{0.0})
 
 	// dot is the model of the system we will simulate
-	dot, err := sim.NewBaseModel(A, B, C, D)
+	dot, err := sim.NewBaseModel(A, nil, C, nil)
 	if err != nil {
 		log.Fatalf("Failed to created dot model: %v", err)
 	}

@@ -65,9 +65,11 @@ func New(m filter.DiscreteModel, init filter.InitCond, q, r filter.Noise) (*KF, 
 		return nil, fmt.Errorf("Invalid propagation matrix dimensions: [%d x %d]", rows, cols)
 	}
 
-	rows, cols = m.StateCtlMatrix().Dims()
-	if rows != in {
-		return nil, fmt.Errorf("Invalid control propagation matrix dimensions: [%d x %d]", rows, cols)
+	if m.StateCtlMatrix() != nil && !m.StateCtlMatrix().(*mat.Dense).IsZero() {
+		rows, cols := m.StateCtlMatrix().Dims()
+		if rows != in {
+			return nil, fmt.Errorf("Invalid ctl propagation matrix dimensions: [%d x %d]", rows, cols)
+		}
 	}
 
 	rows, cols = m.OutputMatrix().Dims()
@@ -75,9 +77,11 @@ func New(m filter.DiscreteModel, init filter.InitCond, q, r filter.Noise) (*KF, 
 		return nil, fmt.Errorf("Invalid observation matrix dimensions: [%d x %d]", rows, cols)
 	}
 
-	rows, cols = m.OutputCtlMatrix().Dims()
-	if rows != out {
-		return nil, fmt.Errorf("Invalid control observation matrix dimensions: [%d x %d]", rows, cols)
+	if m.OutputCtlMatrix() != nil && !m.OutputCtlMatrix().(*mat.Dense).IsZero() {
+		rows, cols = m.OutputCtlMatrix().Dims()
+		if rows != out {
+			return nil, fmt.Errorf("Invalid ctl observation matrix dimensions: [%d x %d]", rows, cols)
+		}
 	}
 
 	// initialize covariance matrix to initial condition covariance
@@ -148,10 +152,6 @@ func (k *KF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("Failed to observe system output: %v", err)
 	}
 
-	// innovation vector
-	inn := &mat.VecDense{}
-	inn.SubVec(z, yNext)
-
 	pxy := mat.NewDense(in, out, nil)
 	pyy := mat.NewDense(out, out, nil)
 
@@ -173,6 +173,10 @@ func (k *KF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	}
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)
+
+	// innovation vector
+	inn := &mat.VecDense{}
+	inn.SubVec(z, yNext)
 
 	// update state x
 	corr := &mat.Dense{}

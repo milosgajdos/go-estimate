@@ -51,6 +51,10 @@ Most of the examples are static i.e. they generate a plot which shows how filter
 
 There are however [two](examples/bfgocv) [examples](examples/kfgocv) which use the wonderful [gocv](https://gocv.io/). They allow you to watch the filter live in action.
 
+Example of bootstrap filter in action:
+
+<img src="./examples/bfgocv/bootstrap_filter.gif" alt="Bootstrap filter in action" width="200">
+
 # TODO
 
 - [ ] [Square Root filter](https://en.wikipedia.org/wiki/Kalman_filter#Square_root_form)

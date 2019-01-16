@@ -32,6 +32,12 @@ type Model interface {
 	Dims() (in int, out int)
 }
 
+// Smoother is a filter smoother
+type Smoother interface {
+	// Smooth implements filter smoothing and returns new estimates
+	Smooth([]Estimate, []Estimate, []mat.Matrix) ([]Estimate, error)
+}
+
 // DiscreteModel is a dynamical system whose state is driven by
 // static propagation and observation dynamics matrices
 type DiscreteModel interface {

@@ -29,7 +29,7 @@ func NewInitCond(state mat.Vector, cov mat.Symmetric) *InitCond {
 // State returns initial state
 func (c *InitCond) State() mat.Vector {
 	state := mat.NewVecDense(c.state.Len(), nil)
-	state.CopyVec(c.state)
+	state.CloneVec(c.state)
 
 	return state
 }

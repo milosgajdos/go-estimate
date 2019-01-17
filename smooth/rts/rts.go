@@ -5,40 +5,59 @@ import (
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/matrix"
+	"github.com/milosgajdos83/go-filter/noise"
 	"gonum.org/v1/gonum/mat"
 )
 
 // RTS is Rauch-Tung-Striebel smoother
 type RTS struct {
-	// c is a smoothing matrix
-	c *mat.Dense
+	// q is state noise a.k.a. process noise
+	q filter.Noise
+	// m is system model
+	m filter.DiscreteModel
+	// start is initial condition
+	start filter.InitCond
 }
 
 // New creates new RTS and returns it.
 // It returns error if it fails to create RTS filter.
-func New(init filter.InitCond) (*RTS, error) {
-	dim := init.State().Len()
+func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, error) {
+	in, out := m.Dims()
+	if in <= 0 || out <= 0 {
+		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
+	}
 
-	c := mat.NewDense(dim, dim, nil)
+	if q != nil {
+		if q.Cov().Symmetric() != in {
+			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
+		}
+	} else {
+		q, _ = noise.NewNone()
+	}
 
 	return &RTS{
-		c: c,
+		q:     q,
+		m:     m,
+		start: init,
 	}, nil
 }
 
 // Smooth implements Rauch-Tung-Striebel smoothing algorithm.
-// It uses updated estimates u, predicted estimates p and dynamics matrices m and returns smoothed estimates.
-// It returns error if either the sizes of p and u differ or the smoothed estimates failed to be calculated.
-func (s *RTS) Smooth(p []filter.Estimate, u []filter.Estimate, m []mat.Matrix) ([]filter.Estimate, error) {
-	if len(p) != len(u) || len(p) != len(m) {
-		return nil, fmt.Errorf("Invalid filter history size")
+// It uses estimates est to compute smoothed estimates and returns them.
+// It returns error if either est is nil or smoothing could not be computed.
+func (s *RTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, error) {
+	if est == nil {
+		return nil, fmt.Errorf("Invalid estimates size")
 	}
 
-	sx := make([]filter.Estimate, len(p)-1)
+	if u != nil && len(u) != len(est) {
+		return nil, fmt.Errorf("Invalid input vector size")
+	}
+
+	sx := make([]filter.Estimate, len(est))
 
 	// create initial estimate to work from recursively
-	est, err := estimate.NewBaseWithCov(u[len(p)-1].Val(), u[len(p)-1].Cov())
+	e, err := estimate.NewBaseWithCov(s.start.State(), s.start.Cov())
 	if err != nil {
 		return nil, err
 	}
@@ -47,43 +66,56 @@ func (s *RTS) Smooth(p []filter.Estimate, u []filter.Estimate, m []mat.Matrix) (
 	x := &mat.Dense{}
 	pk := &mat.Dense{}
 
-	for i := len(p) - 1; i > 0; i-- {
-		fmt.Println(i)
-		// intermediate smoothing matrix
+	var uEst mat.Vector = nil
+	for i := len(est) - 1; i >= 0; i-- {
+		// propagate input state to the next step
+		if u != nil {
+			uEst = u[i]
+		}
+		xk1, err := s.m.Propagate(est[i].Val(), uEst, s.q.Sample())
+		if err != nil {
+			return nil, fmt.Errorf("Model state propagation failed: %v", err)
+		}
+
+		// propagate covariance matrix to the next step
+		pk1 := &mat.Dense{}
+		pk1.Mul(s.m.StateMatrix(), est[i].Cov())
+		pk1.Mul(pk1, s.m.StateMatrix().T())
+
+		if _, ok := s.q.(*noise.None); !ok {
+			pk1.Add(pk1, s.q.Cov())
+		}
+
+		// calculat smoothing matrix
 		c := &mat.Dense{}
-		// Pk*Fk'
-		c.Mul(u[i-1].Cov(), m[i-1].T())
+		// Pk*Ak'
+		c.Mul(est[i].Cov(), s.m.StateMatrix().T())
 		// P_(k+1)^-1 inverse
 		pinv := &mat.Dense{}
 		// invert predicted P_k+1 covariance
-		if err := pinv.Inverse(p[i].Cov()); err != nil {
+		if err := pinv.Inverse(pk1); err != nil {
 			return nil, err
 		}
 		// Pk*Fk'* P_(k+1)^-1
 		c.Mul(c, pinv)
 
-		fmt.Println("U Estimate:\n", matrix.Format(u[i].Val()))
-		fmt.Println("P Estimate:\n", matrix.Format(p[i].Val()))
-
 		// smooth the state
-		x.Sub(est.Val(), p[i].Val())
-		fmt.Println("S Estimate:\n", matrix.Format(x))
-
+		x.Sub(e.Val(), xk1)
 		// c*x
 		x.Mul(c, x)
 		// xk + Ck*x_sub
-		x.Add(u[i-i].Val(), x)
+		x.Add(est[i].Val(), x)
 
 		// smoothed covariance
 		cov := &mat.Dense{}
 		// smooth covariance
-		cov.Sub(est.Cov(), p[i].Cov())
+		cov.Sub(e.Cov(), pk1)
 		// Ck*P_sub
 		pk.Mul(c, cov)
 		// Ck*P_sub*Ck'
 		pk.Mul(pk, c.T())
 		// Pk + Ck*P_sub*Ck'
-		pk.Add(u[i-1].Cov(), pk)
+		pk.Add(est[i].Cov(), pk)
 
 		r, _ := cov.Dims()
 		pSmooth := mat.NewSymDense(r, nil)
@@ -94,12 +126,11 @@ func (s *RTS) Smooth(p []filter.Estimate, u []filter.Estimate, m []mat.Matrix) (
 			}
 		}
 
-		est, err = estimate.NewBaseWithCov(x.ColView(0), pSmooth)
+		e, err = estimate.NewBaseWithCov(x.ColView(0), pSmooth)
 		if err != nil {
 			return nil, err
 		}
-		sx[i-1] = est
-		fmt.Println("Estimate:\n", matrix.Format(est.Val()))
+		sx[i] = e
 	}
 
 	return sx, nil

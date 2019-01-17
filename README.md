@@ -14,6 +14,8 @@ This package offers a small suite of basic filtering algorithms written in Go. I
   * [Iterated Extended Kalman Filter](https://en.wikipedia.org/wiki/Extended_Kalman_filter#Iterated_extended_Kalman_filter)
 * [Kalman Filter](https://en.wikipedia.org/wiki/Kalman_filter) also known as Linear Kalman Filter
 
+In addition it provides an implementation of [Rauch–Tung–Striebel](https://en.wikipedia.org/wiki/Kalman_filter#Rauch%E2%80%93Tung%E2%80%93Striebel) smoothing for Kalman filter, which is an optimal Gaussian smoothing algorithm. There are variants for both `LKF` (Linear Kalman Filter) and `EKF` (Extended Kalman Filter) implemented in the `smooth` package. `UKF` smoothing will be implemented in the future.
+
 # Get started
 
 Get the package:
@@ -59,7 +61,8 @@ Example of bootstrap filter in action:
 
 - [ ] [Square Root filter](https://en.wikipedia.org/wiki/Kalman_filter#Square_root_form)
 - [ ] [Information Filter](https://en.wikipedia.org/wiki/Kalman_filter#Information_filter)
-- [ ] [Smoothing](https://en.wikipedia.org/wiki/Kalman_filter#Fixed-interval_smoothers)
+- [x] [Smoothing](https://en.wikipedia.org/wiki/Kalman_filter#Fixed-interval_smoothers)
+    - [Rauch–Tung–Striebel](https://en.wikipedia.org/wiki/Kalman_filter#Rauch%E2%80%93Tung%E2%80%93Striebel) for both KF and EKF has been implemented in `smooth` package
 
 # Contributing
 

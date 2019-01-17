@@ -1,6 +1,8 @@
 package filter
 
-import "gonum.org/v1/gonum/mat"
+import (
+	"gonum.org/v1/gonum/mat"
+)
 
 // Filter is a dynamical system filter.
 type Filter interface {
@@ -30,6 +32,12 @@ type Model interface {
 	Observer
 	// Dims returns input and output dimensions of the model
 	Dims() (in int, out int)
+}
+
+// Smoother is a filter smoother
+type Smoother interface {
+	// Smooth implements filter smoothing and returns new estimates
+	Smooth([]Estimate, []mat.Vector) ([]Estimate, error)
 }
 
 // DiscreteModel is a dynamical system whose state is driven by

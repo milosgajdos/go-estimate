@@ -1,4 +1,4 @@
-package rts
+package erts
 
 import (
 	"fmt"
@@ -6,22 +6,30 @@ import (
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
 	"github.com/milosgajdos83/go-filter/noise"
+	"gonum.org/v1/gonum/diff/fd"
 	"gonum.org/v1/gonum/mat"
 )
 
-// RTS is Rauch-Tung-Striebel smoother
-type RTS struct {
+// JacFunc defines jacobian function to calculate Jacobian matrix
+type JacFunc func(u mat.Vector) func(y, x []float64)
+
+// ERTS is Extended Rauch-Tung-Striebel smoother
+type ERTS struct {
 	// q is state noise a.k.a. process noise
 	q filter.Noise
+	// FJacFn is propagation Jacobian function
+	FJacFn JacFunc
+	// f is EKF jacobian matrix
+	f *mat.Dense
 	// m is system model
-	m filter.DiscreteModel
+	m filter.Model
 	// start is initial condition
 	start filter.InitCond
 }
 
-// New creates new RTS and returns it.
-// It returns error if it fails to create RTS smoother.
-func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, error) {
+// New creates new ERTS and returns it.
+// It returns error if it fails to create ERTS smoother.
+func New(m filter.Model, init filter.InitCond, q filter.Noise) (*ERTS, error) {
 	in, out := m.Dims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
@@ -35,17 +43,37 @@ func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, er
 		q, _ = noise.NewNone()
 	}
 
-	return &RTS{
-		q:     q,
-		m:     m,
-		start: init,
+	// propagation Jacobian
+	fJacFn := func(u mat.Vector) func([]float64, []float64) {
+		q, _ := noise.NewZero(in)
+
+		return func(xOut, xNow []float64) {
+			x := mat.NewVecDense(len(xNow), xNow)
+			xNext, err := m.Propagate(x, u, q.Sample())
+			if err != nil {
+				panic(err)
+			}
+
+			for i := 0; i < len(xOut); i++ {
+				xOut[i] = xNext.At(i, 0)
+			}
+		}
+	}
+	f := mat.NewDense(in, in, nil)
+
+	return &ERTS{
+		q:      q,
+		FJacFn: fJacFn,
+		f:      f,
+		m:      m,
+		start:  init,
 	}, nil
 }
 
 // Smooth implements Rauch-Tung-Striebel smoothing algorithm.
 // It uses estimates est to compute smoothed estimates and returns them.
 // It returns error if either est is nil or smoothing could not be computed.
-func (s *RTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, error) {
+func (s *ERTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, error) {
 	if est == nil {
 		return nil, fmt.Errorf("Invalid estimates size")
 	}
@@ -72,15 +100,21 @@ func (s *RTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, 
 		if u != nil {
 			uEst = u[i]
 		}
+		// propagate input state to the next step
 		xk1, err := s.m.Propagate(est[i].Val(), uEst, s.q.Sample())
 		if err != nil {
 			return nil, fmt.Errorf("Model state propagation failed: %v", err)
 		}
 
-		// propagate covariance matrix to the next step
+		// calculate propagation Jacobian matrix
+		fd.Jacobian(s.f, s.FJacFn(uEst), mat.Col(nil, 0, est[i].Val()), &fd.JacobianSettings{
+			Formula:    fd.Central,
+			Concurrent: true,
+		})
+
 		pk1 := &mat.Dense{}
-		pk1.Mul(s.m.StateMatrix(), est[i].Cov())
-		pk1.Mul(pk1, s.m.StateMatrix().T())
+		pk1.Mul(s.f, est[i].Cov())
+		pk1.Mul(pk1, s.f.T())
 
 		if _, ok := s.q.(*noise.None); !ok {
 			pk1.Add(pk1, s.q.Cov())
@@ -89,7 +123,7 @@ func (s *RTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, 
 		// calculat smoothing matrix
 		c := &mat.Dense{}
 		// Pk*Ak'
-		c.Mul(est[i].Cov(), s.m.StateMatrix().T())
+		c.Mul(est[i].Cov(), s.f.T())
 		// P_(k+1)^-1 inverse
 		pinv := &mat.Dense{}
 		// invert predicted P_k+1 covariance

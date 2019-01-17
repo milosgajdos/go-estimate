@@ -5,6 +5,7 @@ import (
 
 	filter "github.com/milosgajdos83/go-filter"
 	"github.com/milosgajdos83/go-filter/estimate"
+	"github.com/milosgajdos83/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 
@@ -36,39 +37,53 @@ func (s *RTS) Smooth(p []filter.Estimate, u []filter.Estimate, m []mat.Matrix) (
 
 	sx := make([]filter.Estimate, len(p)-1)
 
-	// P-1 inverse
-	pinv := &mat.Dense{}
-	// intermediate smoothing matrix
-	c := &mat.Dense{}
+	// create initial estimate to work from recursively
+	est, err := estimate.NewBaseWithCov(u[len(p)-1].Val(), u[len(p)-1].Cov())
+	if err != nil {
+		return nil, err
+	}
+
 	// smoothed state
 	x := &mat.Dense{}
-
-	// smoothed covariance
-	cov := &mat.Dense{}
 	pk := &mat.Dense{}
 
 	for i := len(p) - 1; i > 0; i-- {
+		fmt.Println(i)
+		// intermediate smoothing matrix
+		c := &mat.Dense{}
 		// Pk*Fk'
 		c.Mul(u[i-1].Cov(), m[i-1].T())
+		// P_(k+1)^-1 inverse
+		pinv := &mat.Dense{}
 		// invert predicted P_k+1 covariance
 		if err := pinv.Inverse(p[i].Cov()); err != nil {
 			return nil, err
 		}
-		// Pk*Fk'*P(k+1)_-1
+		// Pk*Fk'* P_(k+1)^-1
 		c.Mul(c, pinv)
 
+		fmt.Println("U Estimate:\n", matrix.Format(u[i].Val()))
+		fmt.Println("P Estimate:\n", matrix.Format(p[i].Val()))
+
 		// smooth the state
-		x.Sub(u[i].Val(), p[i].Val())
+		x.Sub(est.Val(), p[i].Val())
+		fmt.Println("S Estimate:\n", matrix.Format(x))
+
 		// c*x
 		x.Mul(c, x)
 		// xk + Ck*x_sub
-		x.Add(x, p[i-i].Val())
+		x.Add(u[i-i].Val(), x)
 
+		// smoothed covariance
+		cov := &mat.Dense{}
 		// smooth covariance
-		cov.Sub(u[i].Cov(), p[i].Cov())
+		cov.Sub(est.Cov(), p[i].Cov())
+		// Ck*P_sub
 		pk.Mul(c, cov)
-		pk.Mul(pk, pk.T())
-		pk.Add(pk, u[i-1].Cov())
+		// Ck*P_sub*Ck'
+		pk.Mul(pk, c.T())
+		// Pk + Ck*P_sub*Ck'
+		pk.Add(u[i-1].Cov(), pk)
 
 		r, _ := cov.Dims()
 		pSmooth := mat.NewSymDense(r, nil)
@@ -79,12 +94,12 @@ func (s *RTS) Smooth(p []filter.Estimate, u []filter.Estimate, m []mat.Matrix) (
 			}
 		}
 
-		est, err := estimate.NewBaseWithCov(x.ColView(0), pSmooth)
+		est, err = estimate.NewBaseWithCov(x.ColView(0), pSmooth)
 		if err != nil {
 			return nil, err
 		}
-
 		sx[i-1] = est
+		fmt.Println("Estimate:\n", matrix.Format(est.Val()))
 	}
 
 	return sx, nil

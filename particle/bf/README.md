@@ -4,4 +4,4 @@ This package implements [Bootstrap Filter](https://en.wikipedia.org/wiki/Particl
 
 # Example output
 
-<img src="../examples/bf/system.png" alt="Bootstrap filter in action" width="200">
+<img src="../../examples/bf/system.png" alt="Bootstrap filter in action" width="200">

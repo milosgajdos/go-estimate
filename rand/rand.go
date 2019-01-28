@@ -58,7 +58,7 @@ func RouletteDrawN(p []float64, n int) ([]int, error) {
 	}
 
 	// Initialization: create the discrete CDF
-	// We know that csf is sorted in ascending order
+	// We know that cdf is sorted in ascending order
 	cdf := make([]float64, len(p))
 	floats.CumSum(cdf, p)
 

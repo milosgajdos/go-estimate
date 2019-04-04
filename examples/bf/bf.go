@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"log"
 
-	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/noise"
-	"github.com/milosgajdos83/go-filter/particle/bf"
-	"github.com/milosgajdos83/go-filter/sim"
+	filter "github.com/milosgajdos83/go-estimate"
+	"github.com/milosgajdos83/go-estimate/estimate"
+	"github.com/milosgajdos83/go-estimate/noise"
+	"github.com/milosgajdos83/go-estimate/particle/bf"
+	"github.com/milosgajdos83/go-estimate/sim"
 	"github.com/milosgajdos83/matrix"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
@@ -24,7 +24,7 @@ func main() {
 	// ball is the model of the system we will simulate
 	ball, err := sim.NewBaseModel(A, B, C, D)
 	if err != nil {
-		log.Fatalf("Failed to created ball: %v", err)
+		log.Fatalf("Failed to create ball: %v", err)
 	}
 
 	// initial system state and control input

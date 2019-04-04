@@ -1,7 +1,7 @@
 package kalman
 
 import (
-	filter "github.com/milosgajdos83/go-filter"
+	filter "github.com/milosgajdos83/go-estimate"
 	"gonum.org/v1/gonum/mat"
 )
 

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math"
 
-	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/noise"
-	"github.com/milosgajdos83/go-filter/rand"
+	filter "github.com/milosgajdos83/go-estimate"
+	"github.com/milosgajdos83/go-estimate/estimate"
+	"github.com/milosgajdos83/go-estimate/noise"
+	"github.com/milosgajdos83/go-estimate/rand"
 	"github.com/milosgajdos83/matrix"
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
@@ -15,38 +15,38 @@ import (
 )
 
 // BF is a Bootstrap Filter a.k.a. SIR Particle Filter.
-// For more information about Bootrstrap Filter see:
+// For more information about Bootstrap Filter see:
 // https://en.wikipedia.org/wiki/Particle_filter#The_bootstrap_filter
 type BF struct {
 	// model is bootstrap filter model
 	model filter.Model
 	// w stores particle weights
 	w []float64
-	// x stores filter particles
+	// x stores filter particles as column vectors
 	x *mat.Dense
 	// y stores particle outputs
 	y *mat.Dense
-	// q is state a.k.a. process noise
+	// q is state noise a.k.a. process noise
 	q filter.Noise
-	// r is output a.k.a. measurement noise
+	// r is output noise a.k.a. measurement noise
 	r filter.Noise
 	// inn stores a diff between measurement vector and particular particle output.
-	// In Kalman filter family similar vector is referred to as "innovation vector"
-	// The size of inn is fixed -- it's equal to the size of system output,
-	// so we preallocate it to avoid reallocating it on every call to Update()
+	// In Kalman filter family similar vector is referred to as "innovation vector".
+	// The size of inn is fixed -- it's equal to the size of the system output,
+	// so we preallocate it to avoid reallocating it on every call to Update().
 	inn []float64
 	// errPDF is PDF (Probability Density Function) of filter output error
 	errPDF distmv.LogProber
 }
 
-// New creates new PF with following parameters and returns it:
+// New creates new Particle Filter (PF) with the following parameters and returns it:
 // - m:     system model
 // - init:  initial condition of the filter
 // - q:     state  noise a.k.a. process noise
 // - r:     output  noise a.k.a. measurement noise
 // - p:     number of filter particles
 // - pdf:   Probability Density Function (PDF) of filter output error
-// It returns error if non-positive number of particles is given or if the particles fail to be generated.
+// New returns error if non-positive number of particles is given or if the particles fail to be generated.
 func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*BF, error) {
 	// must have at least one particle; can't be negative
 	if p <= 0 {
@@ -82,14 +82,14 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 		w[i] = 1 / float64(p)
 	}
 
-	// draw particles from distribution with covariance init.Cov()
+	// draw particles from distribution with covariance InitCond.Cov()
 	x, err := rand.WithCovN(ic.Cov(), p)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
 	}
 
 	rows, cols := x.Dims()
-	// center particles around initial condition init.State()
+	// center particles around initial state condition init.State()
 	for c := 0; c < cols; c++ {
 		for r := 0; r < rows; r++ {
 			x.Set(r, c, x.At(r, c)+ic.State().AtVec(r))
@@ -111,7 +111,8 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 	}, nil
 }
 
-// Predict predicts the next output of the system given the state x and input u and returns it.
+// Predict estimates the next system state and its output given the state x and input u and returns it.
+// Predict modifies internal state of the filter: it updates its particle with their predicted values.
 // It returns error if it fails to propagate either the filter particles or x to the next state.
 func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// propagate input state to the next step
@@ -121,24 +122,25 @@ func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	}
 
 	r, c := b.x.Dims()
-	xpred := mat.NewDense(r, c, nil)
-	// propagate filter particles to the next step and observe output
+	xPred := mat.NewDense(r, c, nil)
+
+	// propagate filter particles to the next step
 	for c := range b.w {
 		xPartNext, err := b.model.Propagate(b.x.ColView(c), u, b.q.Sample())
 		if err != nil {
 			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
 		}
-		xpred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
+		xPred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
 
 	}
 
 	// update filter particles and their observed outputs
-	b.x.Copy(xpred)
+	b.x.Copy(xPred)
 
 	return estimate.NewBase(xNext)
 }
 
-// Update corrects state x using the measurement z, given control intput u and returns the corrected estimate.
+// Update corrects state x using the measurement z given control intput u and returns the corrected estimate.
 // It returns error if it fails to calculate system output estimate or if the size of z is invalid.
 func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	if z.Len() != len(b.inn) {
@@ -146,13 +148,15 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	}
 
 	r, c := b.y.Dims()
-	ypred := mat.NewDense(r, c, nil)
+	yPred := mat.NewDense(r, c, nil)
+
+	// observe system output for each particle
 	for c := range b.w {
 		yPart, err := b.model.Observe(b.x.ColView(c), u, b.r.Sample())
 		if err != nil {
 			return nil, fmt.Errorf("Particle state observation failed: %v", err)
 		}
-		ypred.Slice(0, yPart.Len(), c, c+1).(*mat.Dense).Copy(yPart)
+		yPred.Slice(0, yPart.Len(), c, c+1).(*mat.Dense).Copy(yPart)
 	}
 
 	// Update particle weights:
@@ -160,8 +164,9 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// - multiply the resulting error with particle weight
 	for c := range b.w {
 		for r := 0; r < z.Len(); r++ {
-			b.inn[r] = z.At(r, 0) - ypred.ColView(c).AtVec(r)
+			b.inn[r] = z.At(r, 0) - yPred.ColView(c).AtVec(r)
 		}
+		// turn the innovation vector i.e. measurement error into probability
 		b.w[c] = b.w[c] * math.Exp(b.errPDF.LogProb(b.inn))
 	}
 
@@ -170,7 +175,8 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	rows, _ := b.x.Dims()
 	wavg := 0.0
-	// update/correct particles estimates to weighted average
+
+	// update (correct) particles estimates to weighted average
 	for r := 0; r < rows; r++ {
 		for c := range b.w {
 			wavg += b.w[c] * b.x.At(r, c)
@@ -180,14 +186,14 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	}
 
 	// update filter particle outputs
-	b.y.Copy(ypred)
+	b.y.Copy(yPred)
 
 	return estimate.NewBase(x)
 }
 
-// Run runs one step of Particle Filter for given state x, input u and measurement z.
-// It corrects system state x using measurement z and returns new system estimate.
-// It returns error if it either fails to propagate or correct state x or its particles.
+// Run runs one step of Bootstrap Filter for given state x, input u and measurement z.
+// It corrects system state estimate x using measurement z and returns a new state estimate.
+// It returns error if it either fails to propagate particles or update the state x.
 func (b *BF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 	pred, err := b.Predict(x, u)
 	if err != nil {
@@ -218,6 +224,7 @@ func (b *BF) Resample(alpha float64) error {
 	x := new(mat.Dense)
 	x.Clone(b.x)
 	rows, cols := x.Dims()
+
 	// length of inidices slice is the same as number of columns: number of particles
 	for c := range indices {
 		b.x.Slice(0, rows, c, c+1).(*mat.Dense).Copy(x.ColView(indices[c]))
@@ -245,6 +252,7 @@ func (b *BF) Resample(alpha float64) error {
 	if alpha <= 0 {
 		alpha = AlphaGauss(rows, cols)
 	}
+
 	m.Scale(alpha, m)
 
 	// add random perturbations to the new particles
@@ -261,7 +269,7 @@ func (b *BF) Particles() mat.Matrix {
 	return p
 }
 
-// Weights returns a vector containing PF particle weights
+// Weights returns a vector containing BF particle weights
 func (b *BF) Weights() mat.Vector {
 	data := make([]float64, len(b.w))
 	copy(data, b.w)

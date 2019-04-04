@@ -8,11 +8,11 @@ import (
 	"math"
 	"math/rand"
 
-	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/noise"
-	"github.com/milosgajdos83/go-filter/particle/bf"
-	"github.com/milosgajdos83/go-filter/sim"
+	filter "github.com/milosgajdos83/go-estimate"
+	"github.com/milosgajdos83/go-estimate/estimate"
+	"github.com/milosgajdos83/go-estimate/noise"
+	"github.com/milosgajdos83/go-estimate/particle/bf"
+	"github.com/milosgajdos83/go-estimate/sim"
 	"github.com/milosgajdos83/matrix"
 	"gocv.io/x/gocv"
 	"gonum.org/v1/gonum/mat"
@@ -61,7 +61,7 @@ func main() {
 	var x mat.Vector = mat.NewVecDense(2, []float64{x1, x2})
 	fmt.Println("Initial Model State: \n", matrix.Format(x))
 
-	// initial condition of KF
+	// initial condition of BF
 	initCond := sim.NewInitCond(x, stateCov)
 
 	// z stores real system measurement: y+noise
@@ -71,7 +71,7 @@ func main() {
 	initX := &mat.VecDense{}
 	initX.CloneVec(x)
 	initX.AddVec(initX, stateNoise.Sample())
-	fmt.Println("Initial KF State: \n", matrix.Format(initX))
+	fmt.Println("Initial BF State: \n", matrix.Format(initX))
 
 	var est filter.Estimate
 	est, err = estimate.NewBase(initX)
@@ -85,7 +85,7 @@ func main() {
 	f, err := bf.New(dot, initCond, nil, nil, p, errPDF)
 	//f, err := kf.New(dot, initCond, stateNoise, measNoise)
 	if err != nil {
-		log.Fatalf("Failed to create KF filter: %v", err)
+		log.Fatalf("Failed to create BF filter: %v", err)
 	}
 
 	fmt.Println("=============================================")

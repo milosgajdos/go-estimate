@@ -3,9 +3,9 @@ package kf
 import (
 	"fmt"
 
-	filter "github.com/milosgajdos83/go-filter"
-	"github.com/milosgajdos83/go-filter/estimate"
-	"github.com/milosgajdos83/go-filter/noise"
+	filter "github.com/milosgajdos83/go-estimate"
+	"github.com/milosgajdos83/go-estimate/estimate"
+	"github.com/milosgajdos83/go-estimate/noise"
 	"gonum.org/v1/gonum/mat"
 )
 

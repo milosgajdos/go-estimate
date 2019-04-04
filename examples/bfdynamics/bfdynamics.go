@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -13,11 +14,19 @@ import (
 	"github.com/milosgajdos83/go-estimate/noise"
 	"github.com/milosgajdos83/go-estimate/particle/bf"
 	"github.com/milosgajdos83/go-estimate/sim"
-	"github.com/milosgajdos83/matrix"
 	"gocv.io/x/gocv"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat/distmv"
 )
+
+var (
+	// resample requests particle resampling
+	resample bool
+)
+
+func init() {
+	flag.BoolVar(&resample, "resample", false, "Reasmple BF particles every other step")
+}
 
 func DrawMarker(img *gocv.Mat, center image.Point, c color.RGBA, d int) {
 	gocv.Line(img, image.Pt(center.X-d, center.Y-d), image.Pt(center.X+d, center.Y+d), c, 2)
@@ -25,6 +34,9 @@ func DrawMarker(img *gocv.Mat, center image.Point, c color.RGBA, d int) {
 }
 
 func main() {
+	flag.Parse()
+
+	// system dynamics matrices
 	A := mat.NewDense(2, 2, []float64{1.0, 1.0, 0.0, 1.0})
 	B := mat.NewDense(2, 1, []float64{0.5, 1.0})
 	C := mat.NewDense(1, 2, []float64{1.0, 0.0})
@@ -33,76 +45,89 @@ func main() {
 	// ball is the model of the system we will simulate
 	ball, err := sim.NewBaseModel(A, B, C, D)
 	if err != nil {
-		log.Fatalf("Failed to create ball: %v", err)
+		log.Fatalf("Failed to create ball model: %v", err)
 	}
 
-	// initial system state and control input
+	// Y coordinate of the initial system state
 	startY := 400.0
+	// initial system state
 	var x mat.Vector = mat.NewVecDense(2, []float64{startY, 0.0})
+	// initial system input
 	u := mat.NewVecDense(1, []float64{-9.81})
 
-	// state covariance
-	stateMean := []float64{0.0, 0.0}
+	// system state covariance
 	stateCov := mat.NewSymDense(2, []float64{10, 0, 0, 10})
-	stateNoise, err := noise.NewGaussian(stateMean, stateCov)
+	stateNoise, err := noise.NewGaussian([]float64{0.0, 0.0}, stateCov)
 	if err != nil {
 		log.Fatalf("Failed to create state noise: %v", err)
 	}
 
-	// initial condition
+	// initial condition: initial system state + its covariance
+	// Note: initial condition has 0 mean - we center particles around it
 	initCond := sim.NewInitCond(x, stateCov)
 
-	// number of simulation steps
+	// number of simulation steps: 9 steps cover free fall
+	// within the chosen size of the simulation frame
 	steps := 9
 
-	// measurement noise used to simulate real system
-	measMean := []float64{0.0}
+	// measurement noise used to simulate real life measurements
 	measCov := mat.NewSymDense(1, []float64{10})
-	measNoise, err := noise.NewGaussian(measMean, measCov)
+	measNoise, err := noise.NewGaussian([]float64{0.0}, measCov)
 	if err != nil {
 		log.Fatalf("Failed to create measurement noise: %v", err)
 	}
 
-	// output corrected by filter
-	filterOut := mat.NewDense(steps, 2, nil)
-
 	// number of BF particles
 	p := 100
 
-	// system state error PDF
+	// system state error Probability Distribution Function (PDF)
 	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
 
-	// create new particle filter
+	// create new Bootstrap Filter: note we don't consider noise here
 	f, err := bf.New(ball, initCond, nil, nil, p, errPDF)
 	if err != nil {
-		log.Fatalf("Failed to create particle filter: %v", err)
+		log.Fatalf("Failed to create bootstrap filter: %v", err)
 	}
 
 	// z stores real system measurement: y+noise
 	z := new(mat.VecDense)
-	// filter initial estimate
+
+	// initial filter estimate: our initial guess about position of the ball
+	// Note: Our estimate will be off the model x value
+	initX := &mat.VecDense{}
+	initX.CloneVec(x)
+	initX.AddVec(initX, stateNoise.Sample())
 	var est filter.Estimate
-	est, err = estimate.NewBase(x)
+	est, err = estimate.NewBase(initX)
 	if err != nil {
 		log.Fatalf("Failed to create initial estimate: %v", err)
 	}
 
-	fmt.Println("------------------------------------------------------")
+	///////////////////////////
+	// Simulation parameters //
+	///////////////////////////
 
 	// velocity in X direction
-	xVel := 90.0
-	timestep := 0.5
-	xDist, xMeasDist, xFilterDist := 20.0, 20.0, 20.0
-	yOffset := 100.0
+	velX := 90.0
+	// sampling time: measurement frequency
+	timeStep := 0.5
+	// initial X coordinates for model, measurement and filter
+	modelX, measX, filterX := 20.0, 20.0, 20.0
+	// Y offset from the top frame of the simulation window
+	offsetY := 100.0
 
-	// particle coordinates
+	// initial particle coordinates: particles are centered around initial system state
+	// Note: particles are our "hypothesis" around model (ground truth) value hence the noise
 	particles := f.Particles()
 	partPts := make([]image.Point, p)
 	for i := 0; i < p; i++ {
-		partPts[i].X = int(math.Round(xDist + stateNoise.Sample().At(0, 0)))
-		partPts[i].Y = int(math.Round((startY - particles.At(0, i)) + yOffset))
-		//fmt.Printf("%v\n", partPts[i])
+		partPts[i].X = int(math.Round(modelX + stateNoise.Sample().At(0, 0)))
+		partPts[i].Y = int(math.Round((startY - particles.At(0, i)) + offsetY))
 	}
+
+	////////////////
+	// SIMULATION //
+	////////////////
 
 	// GoCV simulation environment
 	img := gocv.NewMatWithSize(500, 500, gocv.MatTypeCV8UC3)
@@ -110,49 +135,44 @@ func main() {
 	window := gocv.NewWindow("Bootstrap Filter")
 
 	for i := 0; i < steps; i++ {
-		// ground truth propagation
+		// model propagation i.e. ground truth propagation
 		x, err = ball.Propagate(x, u, nil)
 		if err != nil {
-			log.Fatalf("Model Propagation error: %v", err)
+			log.Fatalf("Model propagation failed: %v", err)
 		}
 
-		fmt.Printf("Truth State %d:\n%v\n", i, matrix.Format(x))
-
-		// ground truth observation
+		// model observation i.e. ground truth observation
 		y, err := ball.Observe(x, u, nil)
 		if err != nil {
-			log.Fatalf("Model Observation error: %v", err)
+			log.Fatalf("Model observation failed: %v", err)
 		}
 
-		fmt.Printf("Truth Output %d:\n%v\n", i, matrix.Format(y))
-
-		xDist += xVel * timestep
-		yDist := (startY - y.AtVec(0)) + yOffset
-		truthPt := image.Point{X: int(math.Round(xDist)), Y: int(math.Round(yDist))}
-
-		fmt.Printf("Truth point: %v\n", truthPt)
+		// calculate model coordinates
+		modelX += velX * timeStep
+		modelY := (startY - y.AtVec(0)) + offsetY
+		modelPt := image.Point{
+			X: int(math.Round(modelX)),
+			Y: int(math.Round(modelY)),
+		}
 
 		// measurement: z = y+noise
 		z.AddVec(y, measNoise.Sample())
 
-		fmt.Printf("Measurement %d:\n%v\n", i, matrix.Format(z))
-
-		xMeasDist += xVel * timestep
-		yMeasDist := (startY - z.AtVec(0)) + yOffset
+		// measurement coordinates
+		measX += velX * timeStep
+		measY := (startY - z.AtVec(0)) + offsetY
 		measPt := image.Point{
-			X: int(math.Round(xMeasDist + measNoise.Sample().AtVec(0))),
-			Y: int(math.Round(yMeasDist)),
+			X: int(math.Round(measX + measNoise.Sample().AtVec(0))),
+			Y: int(math.Round(measY + measNoise.Sample().AtVec(0))),
 		}
 
-		fmt.Printf("Truth point: %v\n", measPt)
-
-		// propagate particle filters to the next step
+		// propagate filter particles to the next step
 		pred, err := f.Predict(est.Val(), u)
 		if err != nil {
 			log.Fatalf("Failed to predict next filter state: %v", err)
 		}
 
-		// correct state estimate using measurement z
+		// correct predicted estimate using measurement z
 		est, err = f.Update(pred.Val(), u, z)
 		if err != nil {
 			log.Fatalf("Failed to update the filter state: %v", err)
@@ -164,35 +184,31 @@ func main() {
 			log.Fatalf("Failed to observe filter output: %v", err)
 		}
 
-		// store results for plotting
-		filterOut.Set(i, 0, float64(i))
-		filterOut.Set(i, 1, est.Val().AtVec(0))
+		// filter output coordinates i.e. corrected estimate
+		filterX += velX * timeStep
+		filterY := (startY - yFilter.AtVec(0)) + offsetY
+		filterPt := image.Point{
+			//X: int(math.Round(filterX + measNoise.Sample().AtVec(0))),
+			X: int(math.Round(filterX)),
+			Y: int(math.Round(filterY)),
+		}
 
-		fmt.Printf("CORRECTED State  %d:\n%v\n", i, matrix.Format(est.Val()))
-		fmt.Printf("CORRECTED Output %d:\n%v\n", i, matrix.Format(yFilter))
-		fmt.Println("------------------------------------------------------")
-
-		// reset all pixels to 255
+		// reset all pixels to 255 i.e. to white background
 		img.SetTo(gocv.Scalar{255, 255, 255, 255})
-
-		// draw markers
-		DrawMarker(&img, truthPt, color.RGBA{0, 255, 0, 0}, 2)
-		DrawMarker(&img, measPt, color.RGBA{255, 0, 0, 0}, 2)
 
 		// draw particles in grey-ish color
 		particles := f.Particles()
 		for j := 0; j < p; j++ {
-			partPts[j].X += int(math.Round(xVel * timestep))
-			partPts[j].Y = int(math.Round((startY - particles.At(0, j)) + yOffset))
+			partPts[j].X += int(math.Round(velX * timeStep))
+			partPts[j].Y = int(math.Round((startY - particles.At(0, j)) + offsetY))
 			gocv.Circle(&img, partPts[j], 1, color.RGBA{169, 169, 169, 0}, 1)
 		}
 
-		xFilterDist += xVel * timestep
-		yFilterDist := (startY - yFilter.AtVec(0)) + yOffset
-		filterPt := image.Point{
-			X: int(math.Round(xFilterDist + measNoise.Sample().AtVec(0))),
-			Y: int(math.Round(yFilterDist)),
-		}
+		// draw model (ground truth) point marker
+		DrawMarker(&img, modelPt, color.RGBA{0, 255, 0, 0}, 2)
+		// draw measurement point marker
+		DrawMarker(&img, measPt, color.RGBA{255, 0, 0, 0}, 2)
+		// draw filter point marker
 		DrawMarker(&img, filterPt, color.RGBA{100, 149, 237, 0}, 2)
 
 		window.IMShow(img)
@@ -203,11 +219,10 @@ func main() {
 
 		time.Sleep(600 * time.Millisecond)
 
-		// resample every other step
-		//if i > 0 && i%2 == 0 {
-		//	if err := f.Resample(0.0); err != nil {
-		//		log.Fatalf("Resampling failed: %v", err)
-		//	}
-		//}
+		if resample && i > 0 && i%2 == 0 {
+			if err := f.Resample(0.0); err != nil {
+				log.Fatalf("Failed to resample filter particles: %v", err)
+			}
+		}
 	}
 }

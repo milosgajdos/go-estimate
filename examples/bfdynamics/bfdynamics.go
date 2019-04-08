@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"image"
 	"image/color"
+	"image/gif"
 	"log"
 	"math"
+	"os"
+	"runtime"
 	"time"
 
 	filter "github.com/milosgajdos83/go-estimate"
@@ -20,12 +24,15 @@ import (
 )
 
 var (
-	// resample requests particle resampling
-	resample bool
+	// resample rate
+	resample int
+	// particle count
+	particles int
 )
 
 func init() {
-	flag.BoolVar(&resample, "resample", false, "Reasmple BF particles every other step")
+	flag.IntVar(&resample, "resample", 0, "BF particles resampling rate")
+	flag.IntVar(&particles, "particles", 100, "Number of filter particles")
 }
 
 func DrawMarker(img *gocv.Mat, center image.Point, c color.RGBA, d int) {
@@ -33,7 +40,31 @@ func DrawMarker(img *gocv.Mat, center image.Point, c color.RGBA, d int) {
 	gocv.Line(img, image.Pt(center.X+d, center.Y-d), image.Pt(center.X-d, center.Y+d), c, 2)
 }
 
+func AppendToGIF(out *gif.GIF, img *gocv.Mat, delay int) error {
+	buf := new(bytes.Buffer)
+
+	goImg, err := img.ToImage()
+	if err != nil {
+		return err
+	}
+
+	if err = gif.Encode(buf, goImg, nil); err != nil {
+		return err
+	}
+
+	in, err := gif.Decode(buf)
+	if err != nil {
+		return err
+	}
+
+	out.Image = append(out.Image, in.(*image.Paletted))
+	out.Delay = append(out.Delay, delay)
+
+	return nil
+}
+
 func main() {
+	runtime.LockOSThread()
 	flag.Parse()
 
 	// system dynamics matrices
@@ -52,11 +83,13 @@ func main() {
 	startY := 400.0
 	// initial system state
 	var x mat.Vector = mat.NewVecDense(2, []float64{startY, 0.0})
-	// initial system input
-	u := mat.NewVecDense(1, []float64{-9.81})
+	// initial system input: note, this is not a free fall on Earth
+	u := mat.NewVecDense(1, []float64{-2.0})
 
+	// covariance of system state variables
+	covX, covY := 20.0, 20.0
 	// system state covariance
-	stateCov := mat.NewSymDense(2, []float64{10, 0, 0, 10})
+	stateCov := mat.NewSymDense(2, []float64{covX, 0, 0, covY})
 	stateNoise, err := noise.NewGaussian([]float64{0.0, 0.0}, stateCov)
 	if err != nil {
 		log.Fatalf("Failed to create state noise: %v", err)
@@ -68,22 +101,27 @@ func main() {
 
 	// number of simulation steps: 9 steps cover free fall
 	// within the chosen size of the simulation frame
-	steps := 9
+	//steps := 9
+	steps := 20
 
 	// measurement noise used to simulate real life measurements
-	measCov := mat.NewSymDense(1, []float64{10})
+	// Note: we measure the first state of our model i.e. X
+	measCov := mat.NewSymDense(1, []float64{covX})
 	measNoise, err := noise.NewGaussian([]float64{0.0}, measCov)
 	if err != nil {
 		log.Fatalf("Failed to create measurement noise: %v", err)
 	}
 
 	// number of BF particles
-	p := 100
+	p := particles
+	//p := 10
+	//p := 5
 
 	// system state error Probability Distribution Function (PDF)
 	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
 
 	// create new Bootstrap Filter: note we don't consider noise here
+	//f, err := bf.New(ball, initCond, nil, measNoise, p, errPDF)
 	f, err := bf.New(ball, initCond, nil, nil, p, errPDF)
 	if err != nil {
 		log.Fatalf("Failed to create bootstrap filter: %v", err)
@@ -108,11 +146,12 @@ func main() {
 	///////////////////////////
 
 	// velocity in X direction
-	velX := 90.0
+	velX := 30.0
 	// sampling time: measurement frequency
 	timeStep := 0.5
 	// initial X coordinates for model, measurement and filter
 	modelX, measX, filterX := 20.0, 20.0, 20.0
+	//modelX, measX := 20.0, 20.0
 	// Y offset from the top frame of the simulation window
 	offsetY := 100.0
 
@@ -133,15 +172,28 @@ func main() {
 	img := gocv.NewMatWithSize(500, 500, gocv.MatTypeCV8UC3)
 	// create simple window to show the simulation
 	window := gocv.NewWindow("Bootstrap Filter")
+	// reset all pixels to 255 i.e. to white background
+	img.SetTo(gocv.Scalar{255, 255, 255, 255})
+
+	/////////////////////////
+	/////// Make a GIF //////
+	/////////////////////////
+
+	// output GIF image
+	outGif := &gif.GIF{}
+	// append first image to outGIF
+	if err := AppendToGIF(outGif, &img, 50); err != nil {
+		log.Fatalf("Failed to create GIF image: %v", err)
+	}
 
 	for i := 0; i < steps; i++ {
-		// model propagation i.e. ground truth propagation
+		// model propagation i.e. ground truth propagation without noise
 		x, err = ball.Propagate(x, u, nil)
 		if err != nil {
 			log.Fatalf("Model propagation failed: %v", err)
 		}
 
-		// model observation i.e. ground truth observation
+		// model observation i.e. ground truth observation without noise
 		y, err := ball.Observe(x, u, nil)
 		if err != nil {
 			log.Fatalf("Model observation failed: %v", err)
@@ -178,17 +230,10 @@ func main() {
 			log.Fatalf("Failed to update the filter state: %v", err)
 		}
 
-		// get corrected output
-		yFilter, err := ball.Observe(est.Val(), u, nil)
-		if err != nil {
-			log.Fatalf("Failed to observe filter output: %v", err)
-		}
-
 		// filter output coordinates i.e. corrected estimate
 		filterX += velX * timeStep
-		filterY := (startY - yFilter.AtVec(0)) + offsetY
+		filterY := (startY - est.Val().At(0, 0)) + offsetY
 		filterPt := image.Point{
-			//X: int(math.Round(filterX + measNoise.Sample().AtVec(0))),
 			X: int(math.Round(filterX)),
 			Y: int(math.Round(filterY)),
 		}
@@ -197,19 +242,32 @@ func main() {
 		img.SetTo(gocv.Scalar{255, 255, 255, 255})
 
 		// draw particles in grey-ish color
+		// Note: we are clipping [X,Y] coordinates to stay within frame
 		particles := f.Particles()
 		for j := 0; j < p; j++ {
 			partPts[j].X += int(math.Round(velX * timeStep))
+			if partPts[j].X > 500 {
+				partPts[j].X = 500
+			}
+			if partPts[j].X < 0 {
+				partPts[j].X = 0
+			}
 			partPts[j].Y = int(math.Round((startY - particles.At(0, j)) + offsetY))
+			if partPts[j].Y > 500 {
+				partPts[j].Y = 500
+			}
+			if partPts[j].Y < 0 {
+				partPts[j].Y = 0
+			}
 			gocv.Circle(&img, partPts[j], 1, color.RGBA{169, 169, 169, 0}, 1)
 		}
 
 		// draw model (ground truth) point marker
-		DrawMarker(&img, modelPt, color.RGBA{0, 255, 0, 0}, 2)
+		DrawMarker(&img, modelPt, color.RGBA{0, 255, 0, 0}, 3)
 		// draw measurement point marker
-		DrawMarker(&img, measPt, color.RGBA{255, 0, 0, 0}, 2)
+		DrawMarker(&img, measPt, color.RGBA{255, 0, 0, 0}, 3)
 		// draw filter point marker
-		DrawMarker(&img, filterPt, color.RGBA{100, 149, 237, 0}, 2)
+		DrawMarker(&img, filterPt, color.RGBA{100, 149, 237, 0}, 3)
 
 		window.IMShow(img)
 		if window.WaitKey(int(500)) == 27 {
@@ -217,12 +275,27 @@ func main() {
 			break
 		}
 
-		time.Sleep(600 * time.Millisecond)
+		// append image to outGIF
+		if err := AppendToGIF(outGif, &img, 50); err != nil {
+			log.Fatalf("Failed to create GIF image: %v", err)
+		}
 
-		if resample && i > 0 && i%2 == 0 {
+		time.Sleep(200 * time.Millisecond)
+
+		if resample > 0 && i > 0 && i%resample == 0 {
 			if err := f.Resample(0.0); err != nil {
 				log.Fatalf("Failed to resample filter particles: %v", err)
 			}
 		}
+	}
+
+	fGIF, err := os.Create("out.gif")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fGIF.Close()
+
+	if err = gif.EncodeAll(fGIF, outGif); err != nil {
+		log.Fatal(err)
 	}
 }

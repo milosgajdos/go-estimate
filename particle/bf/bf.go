@@ -131,7 +131,6 @@ func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
 		}
 		xPred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
-
 	}
 
 	// update filter particles and their observed outputs
@@ -162,12 +161,15 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// Update particle weights:
 	// - calculate observation error for each particle output
 	// - multiply the resulting error with particle weight
+	//inn := new(mat.Dense)
 	for c := range b.w {
 		for r := 0; r < z.Len(); r++ {
 			b.inn[r] = z.At(r, 0) - yPred.ColView(c).AtVec(r)
 		}
 		// turn the innovation vector i.e. measurement error into probability
-		b.w[c] = b.w[c] * math.Exp(b.errPDF.LogProb(b.inn))
+		// Note: this isn't actually probability but that's ok because we normalize weights
+		diff := math.Exp(b.errPDF.LogProb(b.inn))
+		b.w[c] = b.w[c] * diff
 	}
 
 	// normalize the particle weights so they express probability
@@ -175,20 +177,21 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	rows, _ := b.x.Dims()
 	wavg := 0.0
-
+	// FIXME: probably no need to allocate a new vector here - just modify b.x
+	xEst := mat.NewVecDense(rows, nil)
 	// update (correct) particles estimates to weighted average
 	for r := 0; r < rows; r++ {
 		for c := range b.w {
 			wavg += b.w[c] * b.x.At(r, c)
 		}
-		x.(*mat.VecDense).SetVec(r, wavg)
+		xEst.SetVec(r, wavg)
 		wavg = 0.0
 	}
 
 	// update filter particle outputs
 	b.y.Copy(yPred)
 
-	return estimate.NewBase(x)
+	return estimate.NewBase(xEst)
 }
 
 // Run runs one step of Bootstrap Filter for given state x, input u and measurement z.

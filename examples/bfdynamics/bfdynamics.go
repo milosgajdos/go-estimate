@@ -114,14 +114,11 @@ func main() {
 
 	// number of BF particles
 	p := particles
-	//p := 10
-	//p := 5
 
 	// system state error Probability Distribution Function (PDF)
 	errPDF, _ := distmv.NewNormal([]float64{0}, measCov, nil)
 
 	// create new Bootstrap Filter: note we don't consider noise here
-	//f, err := bf.New(ball, initCond, nil, measNoise, p, errPDF)
 	f, err := bf.New(ball, initCond, nil, nil, p, errPDF)
 	if err != nil {
 		log.Fatalf("Failed to create bootstrap filter: %v", err)
@@ -131,7 +128,7 @@ func main() {
 	z := new(mat.VecDense)
 
 	// initial filter estimate: our initial guess about position of the ball
-	// Note: Our estimate will be off the model x value
+	// Note: Our estimate will be off the model a bit
 	initX := &mat.VecDense{}
 	initX.CloneVec(x)
 	initX.AddVec(initX, stateNoise.Sample())

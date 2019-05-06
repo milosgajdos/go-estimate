@@ -37,20 +37,20 @@
   revision = "e2365dfdc4a05e4b8299a783240d4a7d5a65d4e4"
 
 [[projects]]
-  digest = "1:20011645d7e842fd4dbadc6bb4cb60956c0de9c8814923bb6149c6e4081ce1d4"
+  digest = "1:c896da761dd61aebe266dff2c5c9f97f05bad7496a99276974b4b8ef1545cb25"
   name = "github.com/jung-kurt/gofpdf"
   packages = ["."]
   pruneopts = "UT"
-  revision = "70a9e1699f5ab939c2306961cf80517e19885a92"
-  version = "v2.1.4"
+  revision = "ce45bb4bec076e7fbc3da704e7dd331526bba782"
+  version = "v2.4.0"
 
 [[projects]]
   branch = "master"
-  digest = "1:24179ddc454d4097915db3528e0b53c65a77b006e03899967c67f2ff7df9ae8f"
+  digest = "1:bdb97a1a5712333f839f867dd0feb1c92da393d4b86711af3fed74d128b4eb7c"
   name = "github.com/milosgajdos83/matrix"
   packages = ["."]
   pruneopts = "UT"
-  revision = "4e49874d633dbd386ad0de378b9712e5bb4710e7"
+  revision = "38bc2a7ca9e3e667c1a1462f061a923fccd6c8f0"
 
 [[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
@@ -82,7 +82,7 @@
   name = "golang.org/x/exp"
   packages = ["rand"]
   pruneopts = "UT"
-  revision = "7fd597ecf5563971626ffbf559e12e323c9f5602"
+  revision = "475c5042d3f1a54a7b90cb8b1efb6697946e1107"
 
 [[projects]]
   branch = "master"
@@ -99,7 +99,7 @@
     "tiff/lzw",
   ]
   pruneopts = "UT"
-  revision = "3fc05d484e9f77dd51816890e05f2602e4ca4d65"
+  revision = "6d32002ffd7577f23673706728e1c510698cecb1"
 
 [[projects]]
   branch = "master"
@@ -107,11 +107,11 @@
   name = "golang.org/x/tools"
   packages = ["container/intsets"]
   pruneopts = "UT"
-  revision = "8a44e74612bcf51f0d4407df3d3a8377cb99c2d8"
+  revision = "3b6f9c0030f769fa3ded8a7f0d9420c71ac20caf"
 
 [[projects]]
   branch = "master"
-  digest = "1:87ddb964a5ea4ad7eba4539a0aa5e44f805ae5572dce77c77a1e79e7e4d2aa46"
+  digest = "1:89d61accd94d0366596ad80505dbaaf06e0d24a8a9c04781013e5ac5a6ee02e7"
   name = "gonum.org/v1/gonum"
   packages = [
     "blas",
@@ -141,11 +141,11 @@
     "stat/distuv",
   ]
   pruneopts = "UT"
-  revision = "169ee079a3fcd6706a67702cf202192814167c28"
+  revision = "4a2eb0188cbc0e070b369cf7197a3ecb1034fb46"
 
 [[projects]]
   branch = "master"
-  digest = "1:e665d840047c5de45e2692c0e5c62d0ea43239bdf4c475cfa25aebf02c7841d2"
+  digest = "1:a2f46ef30043c7ae49f44580cb12ebfef386c3c4b97ae15810f569c661b68bd6"
   name = "gonum.org/v1/plot"
   packages = [
     ".",
@@ -161,7 +161,7 @@
     "vg/vgsvg",
   ]
   pruneopts = "UT"
-  revision = "cd8a2043e414f6c72976b36774ef3719c8c0963c"
+  revision = "3a5f52653745fa15b552c97e1d8052e496e85503"
 
 [solve-meta]
   analyzer-name = "dep"

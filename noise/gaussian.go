@@ -41,7 +41,10 @@ func (g *Gaussian) Sample() mat.Vector {
 
 // Cov returns covariance matrix of Gaussian noise.
 func (g *Gaussian) Cov() mat.Symmetric {
-	return g.dist.CovarianceMatrix(nil)
+	cov := mat.NewSymDense(g.dist.Dim(), nil)
+	g.dist.CovarianceMatrix(cov)
+
+	return cov
 }
 
 // Mean returns Gaussian mean.

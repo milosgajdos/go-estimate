@@ -10,7 +10,7 @@ examples: builddir
 		go build -o "$(BUILDPATH)/$$example" "examples/$$example/$$example.go"; \
 	done
 
-all: dep check test examples
+all: dep check test
 
 builddir:
 	mkdir -p $(BUILDPATH)
@@ -22,24 +22,11 @@ clean:
 	rm -rf $(BUILDPATH)
 	go clean
 
-godep:
-ifneq ($(GO111MODULE),"on")
-	echo "Installing Go dep resolver"
-	wget -O- https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-endif
-
 dep:
-ifeq ($(GO111MODULE),"on")
-	go mod vendor
-else
-	dep ensure -v
-endif
+	go get ./...
 
 check:
-	for pkg in ${PACKAGES}; do \
-		go vet $$pkg || exit ; \
-		golint $$pkg || exit ; \
-	done
+	go vet ./...
 
 test:
 	for pkg in ${PACKAGES}; do \

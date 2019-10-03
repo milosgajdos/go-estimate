@@ -142,7 +142,7 @@ func main() {
 		fmt.Println("---------------------------------------------")
 
 		// reset all pixels to 0
-		img.SetTo(gocv.Scalar{0, 0, 0, 0})
+		img.SetTo(gocv.Scalar{Val1: 0, Val2: 0, Val3: 0, Val4: 0})
 		// draw markers
 		DrawMarker(&img, yPt, color.RGBA{0, 255, 0, 0}, 3)
 		DrawMarker(&img, measPt, color.RGBA{255, 0, 0, 0}, 3)

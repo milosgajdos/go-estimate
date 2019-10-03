@@ -8,3 +8,5 @@ require (
 	gonum.org/v1/gonum v0.0.0-20190502212712-4a2eb0188cbc
 	gonum.org/v1/plot v0.0.0-20190410204940-3a5f52653745
 )
+
+go 1.13

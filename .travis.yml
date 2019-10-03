@@ -1,11 +1,13 @@
 language: go
 go:
-  - "1.10"
-  - "1.11"
+  - "1.12"
+  - "1.13"
 
-before_script:
-  - go get github.com/golang/lint/golint
-  - make godep
+env:
+  - GO111MODULE=on
+
+before_install:
+  - go get golang.org/x/lint/golint
 
 script:
   - make all

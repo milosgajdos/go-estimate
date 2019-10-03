@@ -170,7 +170,7 @@ func main() {
 	// create simple window to show the simulation
 	window := gocv.NewWindow("Bootstrap Filter")
 	// reset all pixels to 255 i.e. to white background
-	img.SetTo(gocv.Scalar{255, 255, 255, 255})
+	img.SetTo(gocv.Scalar{Val1: 255, Val2: 255, Val3: 255, Val4: 255})
 
 	/////////////////////////
 	/////// Make a GIF //////
@@ -236,7 +236,7 @@ func main() {
 		}
 
 		// reset all pixels to 255 i.e. to white background
-		img.SetTo(gocv.Scalar{255, 255, 255, 255})
+		img.SetTo(gocv.Scalar{Val1: 255, Val2: 255, Val3: 255, Val4: 255})
 
 		// draw particles in grey-ish color
 		// Note: we are clipping [X,Y] coordinates to stay within frame

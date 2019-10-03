@@ -18,14 +18,16 @@ In addition it provides an implementation of [Rauch–Tung–Striebel](https://e
 
 # Get started
 
+You might want to Install [GoCV](https://gocv.io) as instructed [here](https://github.com/hybridgroup/gocv/#how-to-install).
+
 Get the package:
 ```shell
-$ go get -u github.com/milosgajdos83/go-estimate
+$ go get github.com/milosgajdos83/go-estimate
 ```
 
 Get dependencies:
 ```shell
-$ make godep && make dep
+$ make dep
 ```
 
 Run unit tests:

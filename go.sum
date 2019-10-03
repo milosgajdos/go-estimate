@@ -17,6 +17,8 @@ github.com/stretchr/testify v1.3.0 h1:TivCn/peBQ7UY8ooIcPgZFpTNSz0Q2U6UrFlUfqbe0
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 gocv.io/x/gocv v0.19.0 h1:S/V3wt7n6XD1IiLNutMunyoMhL9kkZ/5hFhrTrqNBUI=
 gocv.io/x/gocv v0.19.0/go.mod h1:3qacsKAMRS0sZmeLySWcbFeVEU3t86igWaQleAgiuBg=
+gocv.io/x/gocv v0.20.0 h1:2q75zQ8Zel2tB69G6qrmf/E7EdvaCs90qvkHzdSBOAg=
+gocv.io/x/gocv v0.20.0/go.mod h1:vZETJRwLnl11muQ6iL3q4ju+0oJRrdmYdv5xJTH7WYA=
 golang.org/x/exp v0.0.0-20180321215751-8460e604b9de/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20180807140117-3d87b88a115f/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20190125153040-c74c464bbbf2 h1:y102fOLFqhV41b+4GPiJoa0k/x+pJcEi2/HB1Y5T6fU=

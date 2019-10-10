@@ -18,8 +18,6 @@ In addition it provides an implementation of [Rauch–Tung–Striebel](https://e
 
 # Get started
 
-You might want to Install [GoCV](https://gocv.io) as instructed [here](https://github.com/hybridgroup/gocv/#how-to-install).
-
 Get the package:
 ```shell
 $ go get github.com/milosgajdos83/go-estimate
@@ -34,30 +32,7 @@ Run unit tests:
 ```shell
 $ make test
 ```
-
-# Examples
-
-The project provides a few [example](examples) programs which demonstrate basic usage of the `go-estimate` packages.
-
-You can build the examples by running the following command:
-```shell
-$ make examples
-```
-
-This will create a directory called `_build` in your current working directory and places the newly built binaries into it. You can now run the programs by executing any of the binaries from the `_build` directory.
-
-Alternatively, you can also install the examples by either running `go install` for each of the examples or do it all with one command:
-```shell
-$ make install
-```
-
-Most of the examples are static i.e. they generate a plot which shows how filter estimates new values from the noise measurements.
-
-There are however [two](examples/bfgocv) [examples](examples/kfgocv) which use the wonderful [gocv](https://gocv.io/). They allow you to watch the filter live in action.
-
-Example of bootstrap filter in action:
-
-<img src="./examples/bfgocv/bootstrap_filter.gif" alt="Bootstrap filter in action" width="200">
+You can find various examples of usage in [go-estimate-examples](https://github.com/milosgajdos83/go-estimate-examples).
 
 # TODO
 

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math"
 
-	filter "github.com/milosgajdos83/go-estimate"
-	"github.com/milosgajdos83/go-estimate/estimate"
-	"github.com/milosgajdos83/go-estimate/noise"
-	"github.com/milosgajdos83/matrix"
+	filter "github.com/milosgajdos/go-estimate"
+	"github.com/milosgajdos/go-estimate/estimate"
+	"github.com/milosgajdos/go-estimate/noise"
+	"github.com/milosgajdos/matrix"
 	"gonum.org/v1/gonum/mat"
 )
 

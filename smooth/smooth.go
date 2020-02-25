@@ -1,6 +1,6 @@
 package smooth
 
-import filter "github.com/milosgajdos83/go-estimate"
+import filter "github.com/milosgajdos/go-estimate"
 
 // RTS is Rauch Tung Striebel optimal filter smoother
 type RTS interface {

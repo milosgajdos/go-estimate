@@ -22,7 +22,7 @@ func TestNoneMeanCov(t *testing.T) {
 	assert.NotNil(e)
 	assert.NoError(err)
 
-	assert.True(e.Cov().(*mat.SymDense).IsZero())
+	assert.True(e.Cov().(*mat.SymDense).IsEmpty())
 	assert.Equal(0, len(e.Mean()))
 }
 

@@ -131,7 +131,7 @@ func (k *IEKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	apa.Mul(ap, a.T())
 
 	pCorr := &mat.Dense{}
-	if !pkrk.IsZero() {
+	if !pkrk.IsEmpty() {
 		pCorr.Add(apa, pkrk)
 	}
 

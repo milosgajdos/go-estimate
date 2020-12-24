@@ -15,7 +15,7 @@ type InitCond struct {
 // NewInitCond creates new InitCond and returns it
 func NewInitCond(state mat.Vector, cov mat.Symmetric) *InitCond {
 	s := &mat.VecDense{}
-	s.CloneVec(state)
+	s.CloneFromVec(state)
 
 	c := mat.NewSymDense(cov.Symmetric(), nil)
 	c.CopySym(cov)
@@ -29,7 +29,7 @@ func NewInitCond(state mat.Vector, cov mat.Symmetric) *InitCond {
 // State returns initial state
 func (c *InitCond) State() mat.Vector {
 	state := mat.NewVecDense(c.state.Len(), nil)
-	state.CloneVec(c.state)
+	state.CloneFromVec(c.state)
 
 	return state
 }
@@ -126,7 +126,7 @@ func (b *BaseModel) Dims() (int, int) {
 // StateMatrix returns state propagation matrix
 func (b *BaseModel) StateMatrix() mat.Matrix {
 	m := &mat.Dense{}
-	m.Clone(b.A)
+	m.CloneFrom(b.A)
 
 	return m
 }
@@ -135,7 +135,7 @@ func (b *BaseModel) StateMatrix() mat.Matrix {
 func (b *BaseModel) StateCtlMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	if b.B != nil {
-		m.Clone(b.B)
+		m.CloneFrom(b.B)
 	}
 
 	return m
@@ -144,7 +144,7 @@ func (b *BaseModel) StateCtlMatrix() mat.Matrix {
 // OutputMatrix returns observation matrix
 func (b *BaseModel) OutputMatrix() mat.Matrix {
 	m := &mat.Dense{}
-	m.Clone(b.C)
+	m.CloneFrom(b.C)
 
 	return m
 }
@@ -153,7 +153,7 @@ func (b *BaseModel) OutputMatrix() mat.Matrix {
 func (b *BaseModel) OutputCtlMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	if b.D != nil {
-		m.Clone(b.D)
+		m.CloneFrom(b.D)
 	}
 
 	return m

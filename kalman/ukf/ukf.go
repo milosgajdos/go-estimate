@@ -497,7 +497,7 @@ func (k *UKF) SetCov(cov mat.Symmetric) error {
 // Gain returns Kalman gain
 func (k *UKF) Gain() mat.Matrix {
 	gain := &mat.Dense{}
-	gain.Clone(k.k)
+	gain.CloneFrom(k.k)
 
 	return gain
 }

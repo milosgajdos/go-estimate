@@ -65,7 +65,7 @@ func New(m filter.DiscreteModel, init filter.InitCond, q, r filter.Noise) (*KF, 
 		return nil, fmt.Errorf("Invalid propagation matrix dimensions: [%d x %d]", rows, cols)
 	}
 
-	if m.StateCtlMatrix() != nil && !m.StateCtlMatrix().(*mat.Dense).IsZero() {
+	if m.StateCtlMatrix() != nil && !m.StateCtlMatrix().(*mat.Dense).IsEmpty() {
 		rows, cols := m.StateCtlMatrix().Dims()
 		if rows != in {
 			return nil, fmt.Errorf("Invalid ctl propagation matrix dimensions: [%d x %d]", rows, cols)
@@ -77,7 +77,7 @@ func New(m filter.DiscreteModel, init filter.InitCond, q, r filter.Noise) (*KF, 
 		return nil, fmt.Errorf("Invalid observation matrix dimensions: [%d x %d]", rows, cols)
 	}
 
-	if m.OutputCtlMatrix() != nil && !m.OutputCtlMatrix().(*mat.Dense).IsZero() {
+	if m.OutputCtlMatrix() != nil && !m.OutputCtlMatrix().(*mat.Dense).IsEmpty() {
 		rows, cols = m.OutputCtlMatrix().Dims()
 		if rows != out {
 			return nil, fmt.Errorf("Invalid ctl observation matrix dimensions: [%d x %d]", rows, cols)
@@ -209,7 +209,7 @@ func (k *KF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	apa.Mul(ap, a.T())
 
 	pCorr := &mat.Dense{}
-	if !pkrk.IsZero() {
+	if !pkrk.IsEmpty() {
 		pCorr.Add(apa, pkrk)
 	}
 
@@ -284,7 +284,7 @@ func (k *KF) SetCov(cov mat.Symmetric) error {
 // Gain returns Kalman gain
 func (k *KF) Gain() mat.Matrix {
 	gain := &mat.Dense{}
-	gain.Clone(k.k)
+	gain.CloneFrom(k.k)
 
 	return gain
 }

@@ -249,7 +249,7 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	apa.Mul(ap, a.T())
 
 	pCorr := &mat.Dense{}
-	if !pkrk.IsZero() {
+	if !pkrk.IsEmpty() {
 		pCorr.Add(apa, pkrk)
 	}
 
@@ -325,7 +325,7 @@ func (k *EKF) SetCov(cov mat.Symmetric) error {
 // Gain returns Kalman gain
 func (k *EKF) Gain() mat.Matrix {
 	gain := &mat.Dense{}
-	gain.Clone(k.k)
+	gain.CloneFrom(k.k)
 
 	return gain
 }

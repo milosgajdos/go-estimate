@@ -53,7 +53,7 @@ func WithCovN(cov mat.Symmetric, n int) (*mat.Dense, error) {
 // It returns a slice of n indices into the vector p.
 // It fails with error if p is empty or nil.
 func RouletteDrawN(p []float64, n int) ([]int, error) {
-	if p == nil || len(p) == 0 {
+	if len(p) == 0 {
 		return nil, fmt.Errorf("Invalid probability weights: %v", p)
 	}
 

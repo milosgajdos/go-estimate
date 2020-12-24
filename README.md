@@ -1,8 +1,9 @@
 # go-estimate
 
+[![Build Status](https://github.com/milosgajdos/go-estimate/workflows/CI/badge.svg)](https://github.com/milosgajdos/go-estimate/actions?query=workflow%3ACI)
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/milosgajdos/go-estimate)
 [![GoDoc](https://godoc.org/github.com/milosgajdos/go-estimate?status.svg)](https://godoc.org/github.com/milosgajdos/go-estimate)
 [![License](https://img.shields.io/:license-apache-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Travis CI](https://travis-ci.org/milosgajdos/go-estimate.svg?branch=master)](https://travis-ci.org/milosgajdos/go-estimate)
 [![Go Report Card](https://goreportcard.com/badge/milosgajdos/go-estimate)](https://goreportcard.com/report/github.com/milosgajdos/go-estimate)
 
 This package offers a small suite of basic filtering algorithms written in Go. It currently provides the implementations of the following filters and estimators:

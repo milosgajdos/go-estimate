@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  ci:
+    name: Run CI
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest ]
+        go: [ '1.14', '1.15' ]
+
+    steps:
+
+    - name: Set up Go ${{ matrix.go }}
+      uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+
+    - name: Check out code
+      uses: actions/checkout@v2
+
+    # copy-pasta from https://github.com/caddyserver/caddy/blob/master/.github/workflows/ci.yml
+    - name: Print Go version and environment
+      id: vars
+      run: |
+        printf "Using go at: $(which go)\n"
+        printf "Go version: $(go version)\n"
+        printf "\n\nGo environment:\n\n"
+        go env
+        printf "\n\nSystem environment:\n\n"
+        env
+        echo "::set-output name=go_cache::$(go env GOCACHE)"
+
+    - name: Cache the build cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ steps.vars.outputs.go_cache }}
+        key: ${{ runner.os }}-${{ matrix.go }}-go-ci-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.go }}-go-ci
+
+    - name: Get dependencies
+      run: |
+        go get -v -t -d ./...
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      run: go test -v ./...
+
+  lint:
+    name: Run golangci linter
+    timeout-minutes: 5
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+        go: [ '1.14', '1.15' ]
+
+    steps:
+
+    - name: Check out source code
+      uses: actions/checkout@v2
+
+    - name: Run linter
+      uses: golangci/golangci-lint-action@v2
+      with:
+        version: v1.33

@@ -225,7 +225,7 @@ func (b *BF) Resample(alpha float64) error {
 
 	// we need to clone b.x to avoid overriding the existing filter particles
 	x := new(mat.Dense)
-	x.Clone(b.x)
+	x.CloneFrom(b.x)
 	rows, cols := x.Dims()
 
 	// length of inidices slice is the same as number of columns: number of particles
@@ -267,7 +267,7 @@ func (b *BF) Resample(alpha float64) error {
 // Particles returns BF particles
 func (b *BF) Particles() mat.Matrix {
 	p := &mat.Dense{}
-	p.Clone(b.x)
+	p.CloneFrom(b.x)
 
 	return p
 }

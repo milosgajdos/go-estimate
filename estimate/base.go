@@ -18,7 +18,7 @@ type Base struct {
 func NewBase(val mat.Vector) (*Base, error) {
 	v := &mat.VecDense{}
 	if val != nil {
-		v.CloneVec(val)
+		v.CloneFromVec(val)
 	}
 
 	c := mat.NewSymDense(v.Len(), nil)
@@ -39,7 +39,7 @@ func NewBaseWithCov(val mat.Vector, cov mat.Symmetric) (*Base, error) {
 	}
 
 	v := &mat.VecDense{}
-	v.CloneVec(val)
+	v.CloneFromVec(val)
 
 	c := mat.NewSymDense(cov.Symmetric(), nil)
 	c.CopySym(cov)
@@ -53,7 +53,7 @@ func NewBaseWithCov(val mat.Vector, cov mat.Symmetric) (*Base, error) {
 // Val returns estimated value
 func (b *Base) Val() mat.Vector {
 	v := &mat.VecDense{}
-	v.CloneVec(b.val)
+	v.CloneFromVec(b.val)
 
 	return v
 }

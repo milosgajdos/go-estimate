@@ -5,6 +5,7 @@
 [![GoDoc](https://godoc.org/github.com/milosgajdos/go-estimate?status.svg)](https://godoc.org/github.com/milosgajdos/go-estimate)
 [![License](https://img.shields.io/:license-apache-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/milosgajdos/go-estimate)](https://goreportcard.com/report/github.com/milosgajdos/go-estimate)
+[![codecov](https://codecov.io/gh/milosgajdos/go-estimate/branch/master/graph/badge.svg)](https://codecov.io/gh/milosgajdos/go-estimate)
 
 This package offers a small suite of basic filtering algorithms written in Go. It currently provides the implementations of the following filters and estimators:
 

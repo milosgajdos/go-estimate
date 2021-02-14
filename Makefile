@@ -14,7 +14,7 @@ clean:
 	go clean
 
 dep:
-	go get
+	go get ./...
 
 check:
 	go vet ./...

@@ -10,7 +10,7 @@ import (
 
 var (
 	x, u, z, q, r *mat.VecDense
-	A, B, C, D    *mat.Dense
+	A, B, C, D, E *mat.Dense
 )
 
 func setup() {
@@ -26,6 +26,7 @@ func setup() {
 	B = mat.NewDense(2, 1, []float64{0.5, 1.0})
 	C = mat.NewDense(1, 2, []float64{1.0, 0.0})
 	D = mat.NewDense(1, 1, []float64{0.0})
+	E = mat.NewDense(2, 1, []float64{1.0, 0})
 }
 
 func TestMain(m *testing.M) {
@@ -61,15 +62,15 @@ func TestInitCond(t *testing.T) {
 func TestBase(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D)
+	f, err := NewDiscrete(A, B, C, D, E)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
 
-func TestBasePropagate(t *testing.T) {
+func TestDiscretePropagate(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D)
+	f, err := NewDiscrete(A, B, C, D, E)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -92,10 +93,10 @@ func TestBasePropagate(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestBaseObserve(t *testing.T) {
+func TestDiscreteObserve(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D)
+	f, err := NewDiscrete(A, B, C, D, E)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -118,36 +119,43 @@ func TestBaseObserve(t *testing.T) {
 	assert.NoError(err)
 }
 
-func TestBaseSystemMatrices(t *testing.T) {
+func TestSystemMatrices(t *testing.T) {
 	assert := assert.New(t)
-
-	f, err := NewBaseModel(A, B, C, D)
+	f := System{A, B, C, D, E}
 	assert.NotNil(f)
-	assert.NoError(err)
 
-	m := f.StateMatrix()
+	m := f.SystemMatrix()
 	assert.True(mat.EqualApprox(m, A, 0.001))
 
-	m = f.StateCtlMatrix()
+	m = f.ControlMatrix()
 	assert.True(mat.EqualApprox(m, B, 0.001))
 
 	m = f.OutputMatrix()
 	assert.True(mat.EqualApprox(m, C, 0.001))
 
-	m = f.OutputCtlMatrix()
+	m = f.FeedForwardMatrix()
 	assert.True(mat.EqualApprox(m, D, 0.001))
 }
 
-func TestBaseDims(t *testing.T) {
+func TestSystemDims(t *testing.T) {
 	assert := assert.New(t)
-
-	f, err := NewBaseModel(A, B, C, D)
+	f := System{A, B, C, D, E}
 	assert.NotNil(f)
-	assert.NoError(err)
 
-	in, out := f.Dims()
-	_, _in := A.Dims()
-	_out, _ := D.Dims()
-	assert.Equal(_in, in)
-	assert.Equal(_out, out)
+	nx, nu, ny, nz := f.SystemDims()
+	r, c := A.Dims()
+	assert.Equal(nx, r) // A is square [n,n]
+	assert.Equal(nx, c)
+	r, c = B.Dims()
+	assert.Equal(nx, r) // B [n,p]
+	assert.Equal(nu, c)
+	r, c = C.Dims()
+	assert.Equal(ny, r) // C [q,n]
+	assert.Equal(nx, c)
+	r, c = D.Dims()
+	assert.Equal(ny, r) // D [q,p]
+	assert.Equal(nu, c)
+	r, c = E.Dims()
+	assert.Equal(nx, r) // E [n,r]
+	assert.Equal(nz, c)
 }

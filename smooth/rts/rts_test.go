@@ -13,17 +13,17 @@ import (
 )
 
 type invalidModel struct {
-	filter.DiscreteModel
+	filter.DiscreteControlSystem
 	r int
 	c int
 }
 
-func (m *invalidModel) Dims() (int, int) {
-	return m.r, m.c
+func (m *invalidModel) SystemDims() (nx, nu, ny, nz int) {
+	return m.r, 0, m.c, 0
 }
 
 var (
-	okModel  *sim.BaseModel
+	okModel  *sim.Discrete
 	badModel *invalidModel
 	ic       *sim.InitCond
 	q        filter.Noise
@@ -57,8 +57,8 @@ func setup() {
 		ux = append(ux, u)
 	}
 
-	okModel = &sim.BaseModel{A: A, B: B, C: C, D: D}
-	badModel = &invalidModel{DiscreteModel: okModel, r: 10, c: 10}
+	okModel = &sim.Discrete{System: sim.System{A: A, B: B, C: C, D: D}}
+	badModel = &invalidModel{DiscreteControlSystem: okModel, r: 10, c: 10}
 }
 
 func TestMain(m *testing.M) {

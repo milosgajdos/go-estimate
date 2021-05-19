@@ -1,4 +1,4 @@
-module github.com/milosgajdos/go-estimate
+module github.com/soypat/go-estimate
 
 go 1.14
 

@@ -8,6 +8,8 @@ github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 h1:DACJavvAHhabrF0
 github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0/go.mod h1:E/TSTwGwJL78qG/PmXZO1EjYhfJinVAhrmmHX6Z8B9k=
 github.com/jung-kurt/gofpdf v1.0.3-0.20190309125859-24315acbbda5 h1:PJr+ZMXIecYc1Ey2zucXdR73SMBtgjPgwa31099IMv0=
 github.com/jung-kurt/gofpdf v1.0.3-0.20190309125859-24315acbbda5/go.mod h1:7Id9E/uU8ce6rXgefFLlgrJj/GYY22cpxn+r32jIOes=
+github.com/milosgajdos/go-estimate v0.0.1 h1:Z8h+bYKK3hZcZNKlt+XovQZyvj/+hz3ovguIEi9jkT4=
+github.com/milosgajdos/go-estimate v0.0.1/go.mod h1:Prob5p2Ahwlkuoo/7y25uLj3vmjoJ8UiLuCd3p5PHfs=
 github.com/milosgajdos/matrix v0.0.1 h1:zDV91rki6Y6W1yMiSoCpPIKYLoUf0DyEvCA+SloKo1Q=
 github.com/milosgajdos/matrix v0.0.1/go.mod h1:nwsbBAQ4Z39KwGp0YbTK6gnuM9bFyVmwGJKizDeI7BY=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

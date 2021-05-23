@@ -50,22 +50,22 @@ type EKF struct {
 // - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) {
 	// size of the input and output vectors
-	in, out := m.Dims()
-	if in <= 0 || out <= 0 {
-		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
+	nx, _, ny, _ := m.Dims()
+	if nx <= 0 || ny <= 0 {
+		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", nx, ny)
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != in {
-			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().Symmetric() != nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().Symmetric())
 		}
 	} else {
 		q, _ = noise.NewNone()
 	}
 
 	if r != nil {
-		if r.Cov().Symmetric() != out {
-			return nil, fmt.Errorf("Invalid output noise dimension: %d", r.Cov().Symmetric())
+		if r.Cov().Symmetric() != ny {
+			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().Symmetric())
 		}
 	} else {
 		r, _ = noise.NewNone()
@@ -73,7 +73,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 
 	// propagation Jacobian
 	fJacFn := func(u mat.Vector) func([]float64, []float64) {
-		q, _ := noise.NewZero(in)
+		q, _ := noise.NewZero(nx)
 
 		return func(xOut, xNow []float64) {
 			x := mat.NewVecDense(len(xNow), xNow)
@@ -87,11 +87,11 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 			}
 		}
 	}
-	f := mat.NewDense(in, in, nil)
+	f := mat.NewDense(nx, nx, nil)
 
 	// observation Jacobian
 	hJacFn := func(u mat.Vector) func([]float64, []float64) {
-		r, _ := noise.NewZero(out)
+		r, _ := noise.NewZero(ny)
 
 		return func(y, xNow []float64) {
 			x := mat.NewVecDense(len(xNow), xNow)
@@ -106,7 +106,7 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 			}
 		}
 	}
-	h := mat.NewDense(out, in, nil)
+	h := mat.NewDense(ny, nx, nil)
 
 	// initialize covariance matrix to initial condition covariance
 	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
@@ -116,10 +116,10 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	pNext := mat.NewSymDense(init.Cov().Symmetric(), nil)
 
 	// innovation vector
-	inn := mat.NewVecDense(out, nil)
+	inn := mat.NewVecDense(ny, nil)
 
 	// kalman gain
-	k := mat.NewDense(in, out, nil)
+	k := mat.NewDense(nx, ny, nil)
 
 	return &EKF{
 		m:      m,
@@ -143,7 +143,7 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// propagate input state to the next step
 	xNext, err := k.m.Propagate(x, u, k.q.Sample())
 	if err != nil {
-		return nil, fmt.Errorf("System state propagation failed: %v", err)
+		return nil, fmt.Errorf("system state propagation failed: %v", err)
 	}
 
 	// calculate propagation Jacobian matrix
@@ -174,16 +174,16 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
-	in, out := k.m.Dims()
+	nx, _, ny, _ := k.m.Dims()
 
-	if z.Len() != out {
-		return nil, fmt.Errorf("Invalid measurement supplied: %v", z)
+	if z.Len() != ny {
+		return nil, fmt.Errorf("invalid measurement supplied: %v", z)
 	}
 
 	// observe system output in the next step
 	y, err := k.m.Observe(x, u, k.r.Sample())
 	if err != nil {
-		return nil, fmt.Errorf("Failed to observe system output: %v", err)
+		return nil, fmt.Errorf("failed to observe system output: %v", err)
 	}
 
 	// calculate observation Jacobian matrix
@@ -192,8 +192,8 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		Concurrent: true,
 	})
 
-	pxy := mat.NewDense(in, out, nil)
-	pyy := mat.NewDense(out, out, nil)
+	pxy := mat.NewDense(nx, ny, nil)
+	pyy := mat.NewDense(ny, ny, nil)
 
 	// P*H'
 	pxy.Mul(k.pNext, k.h.T())
@@ -209,7 +209,7 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	// calculate Kalman gain
 	pyyInv := &mat.Dense{}
 	if err := pyyInv.Inverse(pyy); err != nil {
-		return nil, fmt.Errorf("Failed to calculat Pyy inverse: %v", err)
+		return nil, fmt.Errorf("failed to calculat Pyy inverse: %v", err)
 	}
 	gain := &mat.Dense{}
 	gain.Mul(pxy, pyyInv)
@@ -257,8 +257,8 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	k.inn.CopyVec(inn)
 	k.k.Copy(gain)
 	// update EKF covariance matrix
-	for i := 0; i < in; i++ {
-		for j := i; j < in; j++ {
+	for i := 0; i < nx; i++ {
+		for j := i; j < nx; j++ {
 			k.p.SetSym(i, j, pCorr.At(i, j))
 		}
 	}
@@ -310,11 +310,11 @@ func (k *EKF) Cov() mat.Symmetric {
 // It returns error if either cov is nil or its dimensions are not the same as EKF covariance dimensions.
 func (k *EKF) SetCov(cov mat.Symmetric) error {
 	if cov == nil {
-		return fmt.Errorf("Invalid covariance matrix: %v", cov)
+		return fmt.Errorf("invalid covariance matrix: %v", cov)
 	}
 
 	if cov.Symmetric() != k.p.Symmetric() {
-		return fmt.Errorf("Invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
 	}
 
 	k.p.CopySym(cov)

@@ -15,8 +15,8 @@ type invalidModel struct {
 	filter.Model
 }
 
-func (m *invalidModel) Dims() (int, int) {
-	return -10, 8
+func (m *invalidModel) Dims() (nx, nu, ny, nz int) {
+	return -10, 0, 8, 0
 }
 
 var (

@@ -50,29 +50,29 @@ type BF struct {
 func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*BF, error) {
 	// must have at least one particle; can't be negative
 	if p <= 0 {
-		return nil, fmt.Errorf("Invalid particle count: %d", p)
+		return nil, fmt.Errorf("invalid particle count: %d", p)
 	}
 
 	// size of input and output vectors
-	in, out := m.Dims()
-	if in <= 0 || out <= 0 {
-		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
+	_nx, _, _ny, _ := m.Dims()
+	if _nx <= 0 || _ny <= 0 {
+		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", _nx, _ny)
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != in {
-			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().Symmetric() != _nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().Symmetric())
 		}
 	} else {
-		q, _ = noise.NewZero(in)
+		q, _ = noise.NewZero(_nx)
 	}
 
 	if r != nil {
-		if r.Cov().Symmetric() != out {
-			return nil, fmt.Errorf("Invalid output noise dimension: %d", r.Cov().Symmetric())
+		if r.Cov().Symmetric() != _ny {
+			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().Symmetric())
 		}
 	} else {
-		r, _ = noise.NewZero(out)
+		r, _ = noise.NewZero(_ny)
 	}
 
 	// Initialize particle weights to equal probabilities:
@@ -85,7 +85,7 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 	// draw particles from distribution with covariance InitCond.Cov()
 	x, err := rand.WithCovN(ic.Cov(), p)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to generate filter particles: %v", err)
+		return nil, fmt.Errorf("failed to generate filter particles: %v", err)
 	}
 
 	rows, cols := x.Dims()
@@ -96,8 +96,8 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 		}
 	}
 
-	y := mat.NewDense(out, p, nil)
-	inn := make([]float64, out)
+	y := mat.NewDense(_ny, p, nil)
+	inn := make([]float64, _ny)
 
 	return &BF{
 		model:  m,
@@ -118,7 +118,7 @@ func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	// propagate input state to the next step
 	xNext, err := b.model.Propagate(x, u, b.q.Sample())
 	if err != nil {
-		return nil, fmt.Errorf("System state propagation failed: %v", err)
+		return nil, fmt.Errorf("system state propagation failed: %v", err)
 	}
 
 	r, c := b.x.Dims()
@@ -128,7 +128,7 @@ func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	for c := range b.w {
 		xPartNext, err := b.model.Propagate(b.x.ColView(c), u, b.q.Sample())
 		if err != nil {
-			return nil, fmt.Errorf("Particle state propagation failed: %v", err)
+			return nil, fmt.Errorf("particle state propagation failed: %v", err)
 		}
 		xPred.Slice(0, xPartNext.Len(), c, c+1).(*mat.Dense).Copy(xPartNext)
 	}
@@ -143,7 +143,7 @@ func (b *BF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 // It returns error if it fails to calculate system output estimate or if the size of z is invalid.
 func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	if z.Len() != len(b.inn) {
-		return nil, fmt.Errorf("Invalid measurement size: %d", z.Len())
+		return nil, fmt.Errorf("invalid measurement size: %d", z.Len())
 	}
 
 	r, c := b.y.Dims()
@@ -153,7 +153,7 @@ func (b *BF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	for c := range b.w {
 		yPart, err := b.model.Observe(b.x.ColView(c), u, b.r.Sample())
 		if err != nil {
-			return nil, fmt.Errorf("Particle state observation failed: %v", err)
+			return nil, fmt.Errorf("particle state observation failed: %v", err)
 		}
 		yPred.Slice(0, yPart.Len(), c, c+1).(*mat.Dense).Copy(yPart)
 	}
@@ -220,7 +220,7 @@ func (b *BF) Resample(alpha float64) error {
 	// rand.RouletteDrawN returns a slice of column indices to b.x
 	indices, err := rand.RouletteDrawN(b.w, len(b.w))
 	if err != nil {
-		return fmt.Errorf("Failed to sample filter particles: %v", err)
+		return fmt.Errorf("failed to sample filter particles: %v", err)
 	}
 
 	// we need to clone b.x to avoid overriding the existing filter particles
@@ -242,13 +242,13 @@ func (b *BF) Resample(alpha float64) error {
 	// We need to calculate covariance matrix of particles
 	cov, err := matrix.Cov(b.x, "cols")
 	if err != nil {
-		return fmt.Errorf("Failed to calculate covariance matrix: %v", err)
+		return fmt.Errorf("failed to calculate covariance matrix: %v", err)
 	}
 
 	// randomly draw values with given particle covariance
 	m, err := rand.WithCovN(cov, cols)
 	if err != nil {
-		return fmt.Errorf("Failed to draw random particle pertrubations: %v", err)
+		return fmt.Errorf("failed to draw random particle pertrubations: %v", err)
 	}
 
 	// if invalid alpha is given, use the optimal value for Gaussian

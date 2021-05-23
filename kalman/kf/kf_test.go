@@ -17,8 +17,8 @@ type invalidModel struct {
 	c int
 }
 
-func (m *invalidModel) Dims() (int, int) {
-	return m.r, m.c
+func (m *invalidModel) Dims() (nx, nu, ny, nz int) {
+	return m.r, 0, m.c, 0
 }
 
 var (
@@ -66,8 +66,8 @@ func TestKFNew(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
-	assert.NotNil(f)
 	assert.NoError(err)
+	assert.NotNil(f)
 
 	// invalid model: negative dimensions
 	badModel.r, badModel.c = -10, 20

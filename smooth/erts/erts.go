@@ -30,7 +30,7 @@ type ERTS struct {
 // New creates new ERTS and returns it.
 // It returns error if it fails to create ERTS smoother.
 func New(m filter.Model, init filter.InitCond, q filter.Noise) (*ERTS, error) {
-	in, out := m.Dims()
+	in, _, out, _ := m.Dims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
 	}

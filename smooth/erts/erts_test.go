@@ -18,8 +18,8 @@ type invalidModel struct {
 	c int
 }
 
-func (m *invalidModel) Dims() (int, int) {
-	return m.r, m.c
+func (m *invalidModel) Dims() (int, int, int, int) {
+	return m.r, m.c, m.c, 0
 }
 
 var (

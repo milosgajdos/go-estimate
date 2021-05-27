@@ -6,7 +6,8 @@ import (
 
 // Filter is a dynamical system filter.
 type Filter interface {
-	// Predict returns the expected change in internal state
+	// Predict returns a prediction of which will be
+	// next internal state
 	Predict(x, u mat.Vector) (Estimate, error)
 	// Update returns estimated system state based on external measurement ym.
 	Update(x, u, ym mat.Vector) (Estimate, error)
@@ -32,15 +33,15 @@ type Model interface {
 	Propagator
 	// Observer is system observer
 	Observer
-	// Dims returns the dimension of state vector, input vector,
+	// SystemDims returns the dimension of state vector, input vector,
 	// output (measurements, written as y) vector and disturbance vector (only dynamical systems).
-	// Below are dimension of matrices as returned by Dims() (row,column)
-	//  nx, nx = A.Dims()
-	//  nx, nu = B.Dims()
-	//  ny, nx = C.Dims()
-	//  ny, nu = D.Dims()
-	//  nx, nz = E.Dims()
-	Dims() (nx, nu, ny, nz int)
+	// Below are dimension of matrices as returned by SystemDims() (row,column)
+	//  nx, nx = A.SystemDims()
+	//  nx, nu = B.SystemDims()
+	//  ny, nx = C.SystemDims()
+	//  ny, nu = D.SystemDims()
+	//  nx, nz = E.SystemDims()
+	SystemDims() (nx, nu, ny, nz int)
 }
 
 // Smoother is a filter smoother
@@ -55,13 +56,13 @@ type DiscreteModel interface {
 	// Model is a model of a dynamical system
 	Model
 	// SystemMatrix returns state propagation matrix
-	SystemMatrix() (A mat.Matrix) // TODO rename to SystemMatrix
+	SystemMatrix() (A mat.Matrix)
 	// ControlMatrix returns state propagation control matrix
-	ControlMatrix() (B mat.Matrix) // TODO rename to ControlMatrix
+	ControlMatrix() (B mat.Matrix)
 	// OutputMatrix returns observation matrix
 	OutputMatrix() (C mat.Matrix)
 	// FeedForwardMatrix returns observation control matrix
-	FeedForwardMatrix() (D mat.Matrix) // TODO Rename to FeedMatrix/FeedForwardMatrix
+	FeedForwardMatrix() (D mat.Matrix)
 	// TODO DisturbanceMatrix
 }
 

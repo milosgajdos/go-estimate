@@ -39,21 +39,21 @@ type KF struct {
 //  - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF, error) {
 	// size of the input and output vectors
-	_nx, _, _ny, _ := m.Dims()
-	if _nx <= 0 || _ny <= 0 {
-		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", _nx, _ny)
+	nx, _, ny, _ := m.SystemDims()
+	if nx <= 0 || ny <= 0 {
+		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", nx, ny)
 	}
 
 	if z != nil {
-		if z.Cov().Symmetric() != _nx {
-			return nil, fmt.Errorf("invalid state noise dimension: %d != %d", z.Cov().Symmetric(), _ny)
+		if z.Cov().Symmetric() != nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d != %d", z.Cov().Symmetric(), ny)
 		}
 	} else {
 		z, _ = noise.NewNone()
 	}
 
 	if wn != nil {
-		if wn.Cov().Symmetric() != _ny {
+		if wn.Cov().Symmetric() != ny {
 			return nil, fmt.Errorf("invalid output noise dimension: %d", wn.Cov().Symmetric())
 		}
 	} else {
@@ -61,25 +61,25 @@ func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF,
 	}
 
 	rows, cols := m.SystemMatrix().Dims()
-	if rows != _nx || cols != _nx {
+	if rows != nx || cols != nx {
 		return nil, fmt.Errorf("invalid propagation matrix dimensions: [%d x %d]", rows, cols)
 	}
 
 	if m.ControlMatrix() != nil && !m.ControlMatrix().(*mat.Dense).IsEmpty() {
 		rows, cols := m.ControlMatrix().Dims()
-		if rows != _nx {
+		if rows != nx {
 			return nil, fmt.Errorf("invalid ctl propagation matrix dimensions: [%d x %d]", rows, cols)
 		}
 	}
 
 	rows, cols = m.OutputMatrix().Dims()
-	if rows != _ny || cols != _nx {
+	if rows != ny || cols != nx {
 		return nil, fmt.Errorf("invalid observation matrix dimensions: [%d x %d]", rows, cols)
 	}
 
 	if m.FeedForwardMatrix() != nil && !m.FeedForwardMatrix().(*mat.Dense).IsEmpty() {
 		rows, cols = m.FeedForwardMatrix().Dims()
-		if rows != _ny {
+		if rows != ny {
 			return nil, fmt.Errorf("invalid ctl observation matrix dimensions: [%d x %d]", rows, cols)
 		}
 	}
@@ -92,10 +92,10 @@ func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF,
 	pNext := mat.NewSymDense(init.Cov().Symmetric(), nil)
 
 	// innovation vector
-	inn := mat.NewVecDense(_ny, nil)
+	inn := mat.NewVecDense(ny, nil)
 
 	// kalman gain
-	k := mat.NewDense(_nx, _ny, nil)
+	k := mat.NewDense(nx, ny, nil)
 
 	return &KF{
 		m:     m,
@@ -140,9 +140,9 @@ func (k *KF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (k *KF) Update(x, u, ym mat.Vector) (filter.Estimate, error) {
-	_nx, _, _ny, _ := k.m.Dims()
+	nx, _, ny, _ := k.m.SystemDims()
 
-	if ym.Len() != _ny {
+	if ym.Len() != ny {
 		return nil, fmt.Errorf("invalid measurement supplied: %v", ym)
 	}
 
@@ -152,8 +152,8 @@ func (k *KF) Update(x, u, ym mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("failed to observe system output: %v", err)
 	}
 
-	pxy := mat.NewDense(_nx, _ny, nil)
-	pyy := mat.NewDense(_ny, _ny, nil)
+	pxy := mat.NewDense(nx, ny, nil)
+	pyy := mat.NewDense(ny, ny, nil)
 
 	// P*H'
 	pxy.Mul(k.pNext, k.m.OutputMatrix().T())
@@ -217,8 +217,8 @@ func (k *KF) Update(x, u, ym mat.Vector) (filter.Estimate, error) {
 	k.inn.CopyVec(inn)
 	k.k.Copy(gain)
 	// update KF covariance matrix
-	for i := 0; i < _nx; i++ {
-		for j := i; j < _nx; j++ {
+	for i := 0; i < nx; i++ {
+		for j := i; j < nx; j++ {
 			k.p.SetSym(i, j, pCorr.At(i, j))
 		}
 	}

@@ -64,12 +64,12 @@ func NewBaseModel(A, B, C, D, E *mat.Dense) (*BaseModel, error) {
 // Propagate propagates internal state x of a falling ball to the next step
 // given an input vector u and a disturbance input z. (wd is process noise, z not implemented yet)
 func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
-	_nx, _nu, _, _ := b.Dims()
-	if u != nil && u.Len() != _nu {
+	nx, nu, _, _ := b.SystemDims()
+	if u != nil && u.Len() != nu {
 		return nil, fmt.Errorf("invalid input vector")
 	}
 
-	if x.Len() != _nx {
+	if x.Len() != nx {
 		return nil, fmt.Errorf("invalid state vector")
 	}
 
@@ -83,7 +83,7 @@ func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
 		out.Add(out, outU)
 	}
 
-	if wd != nil && wd.Len() == _nx { // TODO change _nx to _nz when switching to z
+	if wd != nil && wd.Len() == nx { // TODO change _nx to _nz when switching to z and disturbance matrix implementation
 		// outZ := new(mat.Dense) // TODO add E disturbance matrix
 		// outZ.Mul(b.E, z)
 		// out.Add(out, outZ)
@@ -96,12 +96,12 @@ func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
 // Observe observes external state of falling ball given internal state x and input u.
 // wn is added to the output as a noise vector.
 func (b *BaseModel) Observe(x, u, wn mat.Vector) (mat.Vector, error) {
-	_nx, _nu, _ny, _ := b.Dims()
-	if u != nil && u.Len() != _nu {
+	nx, nu, ny, _ := b.SystemDims()
+	if u != nil && u.Len() != nu {
 		return nil, fmt.Errorf("invalid input vector")
 	}
 
-	if x.Len() != _nx {
+	if x.Len() != nx {
 		return nil, fmt.Errorf("invalid state vector")
 	}
 
@@ -115,7 +115,7 @@ func (b *BaseModel) Observe(x, u, wn mat.Vector) (mat.Vector, error) {
 		out.Add(out, outU)
 	}
 
-	if wn != nil && wn.Len() == _ny {
+	if wn != nil && wn.Len() == ny {
 		out.Add(out, wn)
 	}
 
@@ -125,7 +125,7 @@ func (b *BaseModel) Observe(x, u, wn mat.Vector) (mat.Vector, error) {
 // Dims returns input and output model dimensions.
 // n is state vector length, p is input vector length, q is
 // measured state length (output vector) and r is distrubance input length.
-func (b *BaseModel) Dims() (nx, nu, ny, nz int) {
+func (b *BaseModel) SystemDims() (nx, nu, ny, nz int) {
 	nx, _ = b.A.Dims()
 	if b.B != nil {
 		_, nu = b.B.Dims()

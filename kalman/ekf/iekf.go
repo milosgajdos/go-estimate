@@ -49,9 +49,9 @@ func NewIter(m filter.Model, ic filter.InitCond, q, r filter.Noise, n int) (*IEK
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate of x.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (k *IEKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
-	_nx, _, _ny, _ := k.m.Dims()
+	nx, _, ny, _ := k.m.SystemDims()
 
-	if z.Len() != _ny {
+	if z.Len() != ny {
 		return nil, fmt.Errorf("invalid measurement supplied: %v", z)
 	}
 
@@ -61,8 +61,8 @@ func (k *IEKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 		return nil, fmt.Errorf("failed to observe system output: %v", err)
 	}
 
-	pxy := mat.NewDense(_nx, _ny, nil)
-	pyy := mat.NewDense(_ny, _ny, nil)
+	pxy := mat.NewDense(nx, ny, nil)
+	pyy := mat.NewDense(ny, ny, nil)
 
 	// innovation vector
 	inn := &mat.VecDense{}
@@ -139,8 +139,8 @@ func (k *IEKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	k.inn.CopyVec(inn)
 	k.k.Copy(gain)
 	// update EKF covariance matrix
-	for i := 0; i < _nx; i++ {
-		for j := i; j < _nx; j++ {
+	for i := 0; i < nx; i++ {
+		for j := i; j < nx; j++ {
 			k.p.SetSym(i, j, pCorr.At(i, j))
 		}
 	}

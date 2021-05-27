@@ -22,7 +22,7 @@ type RTS struct {
 // New creates new RTS and returns it.
 // It returns error if it fails to create RTS smoother.
 func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, error) {
-	in, _, out, _ := m.Dims()
+	in, _, out, _ := m.SystemDims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
 	}

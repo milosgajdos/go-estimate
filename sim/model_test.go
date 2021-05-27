@@ -146,20 +146,20 @@ func TestBaseDims(t *testing.T) {
 	assert.NotNil(f)
 	assert.NoError(err)
 
-	_nx, _nu, _ny, _nz := f.Dims()
+	nx, nu, ny, nz := f.SystemDims()
 	r, c := A.Dims()
-	assert.Equal(_nx, r) // A is square [n,n]
-	assert.Equal(_nx, c)
+	assert.Equal(nx, r) // A is square [n,n]
+	assert.Equal(nx, c)
 	r, c = B.Dims()
-	assert.Equal(_nx, r) // B [n,p]
-	assert.Equal(_nu, c)
+	assert.Equal(nx, r) // B [n,p]
+	assert.Equal(nu, c)
 	r, c = C.Dims()
-	assert.Equal(_ny, r) // C [q,n]
-	assert.Equal(_nx, c)
+	assert.Equal(ny, r) // C [q,n]
+	assert.Equal(nx, c)
 	r, c = D.Dims()
-	assert.Equal(_ny, r) // D [q,p]
-	assert.Equal(_nu, c)
+	assert.Equal(ny, r) // D [q,p]
+	assert.Equal(nu, c)
 	r, c = E.Dims()
-	assert.Equal(_nx, r) // E [n,r]
-	assert.Equal(_nz, c)
+	assert.Equal(nx, r) // E [n,r]
+	assert.Equal(nz, c)
 }

@@ -50,7 +50,7 @@ type EKF struct {
 // - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) {
 	// size of the input and output vectors
-	nx, _, ny, _ := m.Dims()
+	nx, _, ny, _ := m.SystemDims()
 	if nx <= 0 || ny <= 0 {
 		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", nx, ny)
 	}
@@ -174,7 +174,7 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 // Update corrects state x using the measurement z, given control intput u and returns corrected estimate.
 // It returns error if either invalid state was supplied or if it fails to calculate system output estimate.
 func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
-	nx, _, ny, _ := k.m.Dims()
+	nx, _, ny, _ := k.m.SystemDims()
 
 	if z.Len() != ny {
 		return nil, fmt.Errorf("invalid measurement supplied: %v", z)

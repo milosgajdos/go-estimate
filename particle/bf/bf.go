@@ -54,25 +54,25 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 	}
 
 	// size of input and output vectors
-	_nx, _, _ny, _ := m.Dims()
-	if _nx <= 0 || _ny <= 0 {
-		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", _nx, _ny)
+	nx, _, ny, _ := m.SystemDims()
+	if nx <= 0 || ny <= 0 {
+		return nil, fmt.Errorf("invalid model dimensions: [%d x %d]", nx, ny)
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != _nx {
+		if q.Cov().Symmetric() != nx {
 			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().Symmetric())
 		}
 	} else {
-		q, _ = noise.NewZero(_nx)
+		q, _ = noise.NewZero(nx)
 	}
 
 	if r != nil {
-		if r.Cov().Symmetric() != _ny {
+		if r.Cov().Symmetric() != ny {
 			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().Symmetric())
 		}
 	} else {
-		r, _ = noise.NewZero(_ny)
+		r, _ = noise.NewZero(ny)
 	}
 
 	// Initialize particle weights to equal probabilities:
@@ -96,8 +96,8 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 		}
 	}
 
-	y := mat.NewDense(_ny, p, nil)
-	inn := make([]float64, _ny)
+	y := mat.NewDense(ny, p, nil)
+	inn := make([]float64, ny)
 
 	return &BF{
 		model:  m,

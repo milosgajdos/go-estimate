@@ -122,9 +122,8 @@ func (b *BaseModel) Observe(x, u, wn mat.Vector) (mat.Vector, error) {
 	return out.ColView(0), nil
 }
 
-// Dims returns input and output model dimensions.
-// n is state vector length, p is input vector length, q is
-// measured state length (output vector) and r is distrubance input length.
+// SystemDims returns internal state length (nx), input vector length (nu),
+// external/observable/output state length (ny) and disturbance vector length (nz).
 func (b *BaseModel) SystemDims() (nx, nu, ny, nz int) {
 	nx, _ = b.A.Dims()
 	if b.B != nil {

@@ -22,7 +22,7 @@ type RTS struct {
 // New creates new RTS and returns it.
 // It returns error if it fails to create RTS smoother.
 func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, error) {
-	in, out := m.Dims()
+	in, _, out, _ := m.SystemDims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)
 	}
@@ -79,8 +79,8 @@ func (s *RTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, 
 
 		// propagate covariance matrix to the next step
 		pk1 := &mat.Dense{}
-		pk1.Mul(s.m.StateMatrix(), est[i].Cov())
-		pk1.Mul(pk1, s.m.StateMatrix().T())
+		pk1.Mul(s.m.SystemMatrix(), est[i].Cov())
+		pk1.Mul(pk1, s.m.SystemMatrix().T())
 
 		if _, ok := s.q.(*noise.None); !ok {
 			pk1.Add(pk1, s.q.Cov())
@@ -89,7 +89,7 @@ func (s *RTS) Smooth(est []filter.Estimate, u []mat.Vector) ([]filter.Estimate, 
 		// calculat smoothing matrix
 		c := &mat.Dense{}
 		// Pk*Ak'
-		c.Mul(est[i].Cov(), s.m.StateMatrix().T())
+		c.Mul(est[i].Cov(), s.m.SystemMatrix().T())
 		// P_(k+1)^-1 inverse
 		pinv := &mat.Dense{}
 		// invert predicted P_k+1 covariance

@@ -13,12 +13,13 @@ import (
 
 type invalidModel struct {
 	filter.DiscreteModel
-	r int
-	c int
+	nx int
+	nu int
+	ny int
 }
 
-func (m *invalidModel) Dims() (int, int) {
-	return m.r, m.c
+func (m *invalidModel) SystemDims() (nx, nu, ny, nz int) {
+	return m.nx, m.nu, m.ny, 0
 }
 
 var (
@@ -50,7 +51,7 @@ func setup() {
 	D := mat.NewDense(1, 1, []float64{0.0})
 
 	okModel = &sim.BaseModel{A: A, B: B, C: C, D: D}
-	badModel = &invalidModel{DiscreteModel: okModel, r: 10, c: 10}
+	badModel = &invalidModel{DiscreteModel: okModel, nx: 10, ny: 10}
 }
 
 func TestMain(m *testing.M) {
@@ -66,11 +67,11 @@ func TestKFNew(t *testing.T) {
 	assert := assert.New(t)
 
 	f, err := New(okModel, ic, q, r)
-	assert.NotNil(f)
 	assert.NoError(err)
+	assert.NotNil(f)
 
 	// invalid model: negative dimensions
-	badModel.r, badModel.c = -10, 20
+	badModel.nx, badModel.ny = -10, 20
 	f, err = New(badModel, ic, q, r)
 	assert.Nil(f)
 	assert.Error(err)

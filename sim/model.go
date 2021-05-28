@@ -52,22 +52,25 @@ type BaseModel struct {
 	C *mat.Dense
 	// D is output control matrix
 	D *mat.Dense
+	// E is Disturbance matrix
+	E *mat.Dense
 }
 
 // NewBaseModel creates a model of falling ball and returns it
-func NewBaseModel(A, B, C, D *mat.Dense) (*BaseModel, error) {
-	return &BaseModel{A: A, B: B, C: C, D: D}, nil
+func NewBaseModel(A, B, C, D, E *mat.Dense) (*BaseModel, error) {
+	return &BaseModel{A: A, B: B, C: C, D: D, E: E}, nil
 }
 
 // Propagate propagates internal state x of a falling ball to the next step
-func (b *BaseModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
-	_in, _out := b.Dims()
-	if u != nil && u.Len() != _out {
-		return nil, fmt.Errorf("Invalid input vector")
+// given an input vector u and a disturbance input z. (wd is process noise, z not implemented yet)
+func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
+	nx, nu, _, _ := b.SystemDims()
+	if u != nil && u.Len() != nu {
+		return nil, fmt.Errorf("invalid input vector")
 	}
 
-	if x.Len() != _in {
-		return nil, fmt.Errorf("Invalid state vector")
+	if x.Len() != nx {
+		return nil, fmt.Errorf("invalid state vector")
 	}
 
 	out := new(mat.Dense)
@@ -80,22 +83,26 @@ func (b *BaseModel) Propagate(x, u, q mat.Vector) (mat.Vector, error) {
 		out.Add(out, outU)
 	}
 
-	if q != nil && q.Len() == _in {
-		out.Add(out, q)
+	if wd != nil && wd.Len() == nx { // TODO change _nx to _nz when switching to z and disturbance matrix implementation
+		// outZ := new(mat.Dense) // TODO add E disturbance matrix
+		// outZ.Mul(b.E, z)
+		// out.Add(out, outZ)
+		out.Add(out, wd)
 	}
 
 	return out.ColView(0), nil
 }
 
-// Observe observes external state of falling ball given internal state x and input u
-func (b *BaseModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
-	_in, _out := b.Dims()
-	if u != nil && u.Len() != _out {
-		return nil, fmt.Errorf("Invalid input vector")
+// Observe observes external state of falling ball given internal state x and input u.
+// wn is added to the output as a noise vector.
+func (b *BaseModel) Observe(x, u, wn mat.Vector) (mat.Vector, error) {
+	nx, nu, ny, _ := b.SystemDims()
+	if u != nil && u.Len() != nu {
+		return nil, fmt.Errorf("invalid input vector")
 	}
 
-	if x.Len() != _in {
-		return nil, fmt.Errorf("Invalid state vector")
+	if x.Len() != nx {
+		return nil, fmt.Errorf("invalid state vector")
 	}
 
 	out := new(mat.Dense)
@@ -108,31 +115,37 @@ func (b *BaseModel) Observe(x, u, r mat.Vector) (mat.Vector, error) {
 		out.Add(out, outU)
 	}
 
-	if r != nil && r.Len() == _out {
-		out.Add(out, r)
+	if wn != nil && wn.Len() == ny {
+		out.Add(out, wn)
 	}
 
 	return out.ColView(0), nil
 }
 
-// Dims returns input and output model dimensions
-func (b *BaseModel) Dims() (int, int) {
-	_, in := b.A.Dims()
-	out, _ := b.C.Dims()
-
-	return in, out
+// SystemDims returns internal state length (nx), input vector length (nu),
+// external/observable/output state length (ny) and disturbance vector length (nz).
+func (b *BaseModel) SystemDims() (nx, nu, ny, nz int) {
+	nx, _ = b.A.Dims()
+	if b.B != nil {
+		_, nu = b.B.Dims()
+	}
+	ny, _ = b.C.Dims()
+	if b.E != nil {
+		_, nz = b.E.Dims()
+	}
+	return nx, nu, ny, nz
 }
 
-// StateMatrix returns state propagation matrix
-func (b *BaseModel) StateMatrix() mat.Matrix {
+// SystemMatrix returns state propagation matrix
+func (b *BaseModel) SystemMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.CloneFrom(b.A)
 
 	return m
 }
 
-// StateCtlMatrix returns state propagation control matrix
-func (b *BaseModel) StateCtlMatrix() mat.Matrix {
+// ControlMatrix returns state propagation control matrix
+func (b *BaseModel) ControlMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	if b.B != nil {
 		m.CloneFrom(b.B)
@@ -149,12 +162,11 @@ func (b *BaseModel) OutputMatrix() mat.Matrix {
 	return m
 }
 
-// OutputCtlMatrix returns observation control matrix
-func (b *BaseModel) OutputCtlMatrix() mat.Matrix {
+// FeedForwardMatrix returns observation control matrix
+func (b *BaseModel) FeedForwardMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	if b.D != nil {
 		m.CloneFrom(b.D)
 	}
-
 	return m
 }

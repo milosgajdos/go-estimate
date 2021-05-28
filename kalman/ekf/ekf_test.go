@@ -15,8 +15,8 @@ type invalidModel struct {
 	filter.Model
 }
 
-func (m *invalidModel) Dims() (int, int) {
-	return -10, 8
+func (m *invalidModel) SystemDims() (nx, nu, ny, nz int) {
+	return -10, 0, 8, 0 // a system may have 0 inputs, this is not "invalid". Negative dimension is invalid
 }
 
 var (

@@ -32,18 +32,14 @@ func New2DPlot(model, measure, filter *mat.Dense) (*plot.Plot, error) {
 		return nil, fmt.Errorf("Invalid data dimensions")
 	}
 
-	p, err := plot.New()
-	if err != nil {
-		return nil, err
-	}
+	p := plot.New()
+
 	p.Title.Text = "Simulation"
 	p.X.Label.Text = "X"
 	p.Y.Label.Text = "Y"
 
-	legend, err := plot.NewLegend()
-	if err != nil {
-		return nil, fmt.Errorf("Failed to create new plot legend")
-	}
+	legend := plot.NewLegend()
+
 	legend.Top = true
 
 	p.Legend = legend

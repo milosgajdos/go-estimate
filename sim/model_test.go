@@ -62,7 +62,7 @@ func TestInitCond(t *testing.T) {
 func TestBase(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D, E)
+	f, err := NewBaseModel(A, B, C, D, E, 1.)
 	assert.NotNil(f)
 	assert.NoError(err)
 }
@@ -70,7 +70,7 @@ func TestBase(t *testing.T) {
 func TestBasePropagate(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D, E)
+	f, err := NewBaseModel(A, B, C, D, E, 1.)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -96,7 +96,7 @@ func TestBasePropagate(t *testing.T) {
 func TestBaseObserve(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D, E)
+	f, err := NewBaseModel(A, B, C, D, E, 1.)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -122,7 +122,7 @@ func TestBaseObserve(t *testing.T) {
 func TestBaseSystemMatrices(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D, E)
+	f, err := NewBaseModel(A, B, C, D, E, 1.)
 	assert.NotNil(f)
 	assert.NoError(err)
 
@@ -142,7 +142,7 @@ func TestBaseSystemMatrices(t *testing.T) {
 func TestBaseDims(t *testing.T) {
 	assert := assert.New(t)
 
-	f, err := NewBaseModel(A, B, C, D, E)
+	f, err := NewBaseModel(A, B, C, D, E, 1.)
 	assert.NotNil(f)
 	assert.NoError(err)
 

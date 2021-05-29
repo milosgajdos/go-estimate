@@ -42,7 +42,7 @@ func (c *InitCond) Cov() mat.Symmetric {
 	return cov
 }
 
-// BaseModel is a basic model of a dynamical system
+// BaseModel is a basic model of a linear, dynamical system
 type BaseModel struct {
 	// A is internal state matrix
 	A *mat.Dense
@@ -54,15 +54,25 @@ type BaseModel struct {
 	D *mat.Dense
 	// E is Disturbance matrix
 	E *mat.Dense
+	// Dt is the time step advanced on each Propagate() call
+	Dt float64
 }
 
-// NewBaseModel creates a model of falling ball and returns it
-func NewBaseModel(A, B, C, D, E *mat.Dense) (*BaseModel, error) {
+// NewBaseModel creates a linear model based on the control theory equations
+// which is advanced by timestep dt.
+//
+//  dx/dt = A*x + B*u + E*z (disturbances E not implemented yet)
+//  y = C*x + D*u
+func NewBaseModel(A, B, C, D, E *mat.Dense, dt float64) (*BaseModel, error) {
+	if dt <= 0 {
+		return nil, fmt.Errorf("time step may not be zero or less than zero")
+	}
 	return &BaseModel{A: A, B: B, C: C, D: D, E: E}, nil
 }
 
-// Propagate propagates internal state x of a falling ball to the next step
-// given an input vector u and a disturbance input z. (wd is process noise, z not implemented yet)
+// Propagate propagates returns the next internal state x
+// of a linear system given an input vector u and a
+// disturbance input z. (wd is process noise, z not implemented yet)
 func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
 	nx, nu, _, _ := b.SystemDims()
 	if u != nil && u.Len() != nu {
@@ -75,7 +85,6 @@ func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
 
 	out := new(mat.Dense)
 	out.Mul(b.A, x)
-
 	if u != nil && b.B != nil {
 		outU := new(mat.Dense)
 		outU.Mul(b.B, u)
@@ -89,11 +98,13 @@ func (b *BaseModel) Propagate(x, u, wd mat.Vector) (mat.Vector, error) {
 		// out.Add(out, outZ)
 		out.Add(out, wd)
 	}
-
+	// integrate the first order derivatives calculated: dx/dt = A*x + B*u + wd
+	out.Scale(b.Dt, out)
+	out.Add(x, out)
 	return out.ColView(0), nil
 }
 
-// Observe observes external state of falling ball given internal state x and input u.
+// Observe returns external/observable state given internal state x and input u.
 // wn is added to the output as a noise vector.
 func (b *BaseModel) Observe(x, u, wn mat.Vector) (mat.Vector, error) {
 	nx, nu, ny, _ := b.SystemDims()
@@ -136,7 +147,7 @@ func (b *BaseModel) SystemDims() (nx, nu, ny, nz int) {
 	return nx, nu, ny, nz
 }
 
-// SystemMatrix returns state propagation matrix
+// SystemMatrix returns state propagation matrix `A`.
 func (b *BaseModel) SystemMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.CloneFrom(b.A)
@@ -144,7 +155,7 @@ func (b *BaseModel) SystemMatrix() mat.Matrix {
 	return m
 }
 
-// ControlMatrix returns state propagation control matrix
+// ControlMatrix returns state propagation control matrix `B`.
 func (b *BaseModel) ControlMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	if b.B != nil {
@@ -154,7 +165,7 @@ func (b *BaseModel) ControlMatrix() mat.Matrix {
 	return m
 }
 
-// OutputMatrix returns observation matrix
+// OutputMatrix returns observation matrix `C`.
 func (b *BaseModel) OutputMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	m.CloneFrom(b.C)
@@ -162,7 +173,7 @@ func (b *BaseModel) OutputMatrix() mat.Matrix {
 	return m
 }
 
-// FeedForwardMatrix returns observation control matrix
+// FeedForwardMatrix returns observation control matrix `D`.
 func (b *BaseModel) FeedForwardMatrix() mat.Matrix {
 	m := &mat.Dense{}
 	if b.D != nil {

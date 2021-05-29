@@ -67,7 +67,7 @@ func NewBaseModel(A, B, C, D, E *mat.Dense, dt float64) (*BaseModel, error) {
 	if dt <= 0 {
 		return nil, fmt.Errorf("time step may not be zero or less than zero")
 	}
-	return &BaseModel{A: A, B: B, C: C, D: D, E: E}, nil
+	return &BaseModel{A: A, B: B, C: C, D: D, E: E, Dt: dt}, nil
 }
 
 // Propagate propagates returns the next internal state x

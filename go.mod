@@ -1,6 +1,6 @@
 module github.com/milosgajdos/go-estimate
 
-go 1.14
+go 1.15
 
 require (
 	github.com/milosgajdos/matrix v0.0.1

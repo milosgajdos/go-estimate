@@ -29,7 +29,7 @@ type IEKF struct {
 // - invalid model is given: model dimensions must be positive integers
 // - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 // - invalid number of update iterations is given: n must be non-negative
-func NewIter(m filter.Model, ic filter.InitCond, q, r filter.Noise, n int) (*IEKF, error) {
+func NewIter(m filter.DiscreteModel, ic filter.InitCond, q, r filter.Noise, n int) (*IEKF, error) {
 	if n <= 0 {
 		return nil, fmt.Errorf("invalid number of update iterations: %d", n)
 	}

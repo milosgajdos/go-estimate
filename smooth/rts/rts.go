@@ -14,14 +14,14 @@ type RTS struct {
 	// q is state noise a.k.a. process noise
 	q filter.Noise
 	// m is system model
-	m filter.DiscreteModel
+	m filter.DiscreteControlSystem
 	// start is initial condition
 	start filter.InitCond
 }
 
 // New creates new RTS and returns it.
 // It returns error if it fails to create RTS smoother.
-func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, error) {
+func New(m filter.DiscreteControlSystem, init filter.InitCond, q filter.Noise) (*RTS, error) {
 	in, _, out, _ := m.SystemDims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)

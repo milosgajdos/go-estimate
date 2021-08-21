@@ -38,7 +38,7 @@ type Config struct {
 // UKF is Unscented (a.k.a. Sigma Point) Kalman Filter
 type UKF struct {
 	// m is UKF system model
-	m filter.Model
+	m filter.DiscreteModel
 	// q is state noise a.k.a. process noise
 	q filter.Noise
 	// r is output noise a.k.a. measurement noise
@@ -77,7 +77,7 @@ type UKF struct {
 // - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 // - invalid sigma points parameters (alpha, beta, kappa) are supplied
 // - sigma points fail to be generated: due to covariance SVD factorizations failure
-func New(m filter.Model, init filter.InitCond, q, r filter.Noise, c *Config) (*UKF, error) {
+func New(m filter.DiscreteModel, init filter.InitCond, q, r filter.Noise, c *Config) (*UKF, error) {
 	// size of the input and output vectors
 	nx, _, ny, _ := m.SystemDims()
 	if nx <= 0 || ny <= 0 {
@@ -456,7 +456,7 @@ func (k *UKF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 }
 
 // Model returns UKF model
-func (k *UKF) Model() filter.Model {
+func (k *UKF) Model() filter.DiscreteModel {
 	return k.m
 }
 

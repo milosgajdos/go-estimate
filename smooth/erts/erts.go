@@ -22,14 +22,14 @@ type ERTS struct {
 	// f is EKF jacobian matrix
 	f *mat.Dense
 	// m is system model
-	m filter.Model
+	m filter.DiscreteModel
 	// start is initial condition
 	start filter.InitCond
 }
 
 // New creates new ERTS and returns it.
 // It returns error if it fails to create ERTS smoother.
-func New(m filter.Model, init filter.InitCond, q filter.Noise) (*ERTS, error) {
+func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*ERTS, error) {
 	in, _, out, _ := m.SystemDims()
 	if in <= 0 || out <= 0 {
 		return nil, fmt.Errorf("Invalid model dimensions: [%d x %d]", in, out)

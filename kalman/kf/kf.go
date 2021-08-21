@@ -12,7 +12,7 @@ import (
 // KF is Kalman Filter
 type KF struct {
 	// m is KF system model
-	m filter.DiscreteModel
+	m filter.DiscreteControlSystem
 	// q is state noise a.k.a. process noise
 	q filter.Noise
 	// r is output noise a.k.a. measurement noise
@@ -37,7 +37,7 @@ type KF struct {
 // It returns error if either of the following conditions is met:
 //  - invalid model is given: model dimensions must be positive integers
 //  - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
-func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF, error) {
+func New(m filter.DiscreteControlSystem, init filter.InitCond, z, wn filter.Noise) (*KF, error) {
 	// size of the input and output vectors
 	nx, _, ny, _ := m.SystemDims()
 	if nx <= 0 || ny <= 0 {
@@ -243,7 +243,7 @@ func (k *KF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 }
 
 // Model returns KF models
-func (k *KF) Model() filter.Model {
+func (k *KF) Model() filter.DiscreteModel {
 	return k.m
 }
 

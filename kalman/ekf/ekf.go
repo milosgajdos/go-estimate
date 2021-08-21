@@ -16,7 +16,7 @@ type JacFunc func(u mat.Vector) func(y, x []float64)
 // EKF is Extended Kalman Filter
 type EKF struct {
 	// m is EKF system model
-	m filter.Model
+	m filter.DiscreteModel
 	// q is state noise a.k.a. process noise
 	q filter.Noise
 	// r is output noise a.k.a. measurement noise
@@ -48,7 +48,7 @@ type EKF struct {
 // It returns error if either of the following conditions is met:
 // - invalid model is given: model dimensions must be positive integers
 // - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
-func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) {
+func New(m filter.DiscreteModel, init filter.InitCond, q, r filter.Noise) (*EKF, error) {
 	// size of the input and output vectors
 	nx, _, ny, _ := m.SystemDims()
 	if nx <= 0 || ny <= 0 {
@@ -284,7 +284,7 @@ func (k *EKF) Run(x, u, z mat.Vector) (filter.Estimate, error) {
 }
 
 // Model returns EKF model
-func (k *EKF) Model() filter.Model {
+func (k *EKF) Model() filter.DiscreteModel {
 	return k.m
 }
 

@@ -19,7 +19,7 @@ import (
 // https://en.wikipedia.org/wiki/Particle_filter#The_bootstrap_filter
 type BF struct {
 	// model is bootstrap filter model
-	model filter.Model
+	model filter.DiscreteModel
 	// w stores particle weights
 	w []float64
 	// x stores filter particles as column vectors
@@ -47,7 +47,7 @@ type BF struct {
 // - p:     number of filter particles
 // - pdf:   Probability Density Function (PDF) of filter output error
 // New returns error if non-positive number of particles is given or if the particles fail to be generated.
-func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*BF, error) {
+func New(m filter.DiscreteModel, ic filter.InitCond, q, r filter.Noise, p int, pdf distmv.LogProber) (*BF, error) {
 	// must have at least one particle; can't be negative
 	if p <= 0 {
 		return nil, fmt.Errorf("invalid particle count: %d", p)

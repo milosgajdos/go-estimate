@@ -88,19 +88,19 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise, c *Config) (*U
 	spDim := init.State().Len()
 
 	if q != nil {
-		if q.Cov().Symmetric() != nx {
-			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().SymmetricDim() != nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().SymmetricDim())
 		}
-		spDim += q.Cov().Symmetric()
+		spDim += q.Cov().SymmetricDim()
 	} else {
 		q, _ = noise.NewNone()
 	}
 
 	if r != nil {
-		if r.Cov().Symmetric() != ny {
-			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().Symmetric())
+		if r.Cov().SymmetricDim() != ny {
+			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().SymmetricDim())
 		}
-		spDim += r.Cov().Symmetric()
+		spDim += r.Cov().SymmetricDim()
 	} else {
 		r, _ = noise.NewNone()
 	}
@@ -142,11 +142,11 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise, c *Config) (*U
 	}
 
 	// predicted covariance; this covariance is corrected using new measurement
-	pNext := mat.NewSymDense(init.Cov().Symmetric(), nil)
+	pNext := mat.NewSymDense(init.Cov().SymmetricDim(), nil)
 	pNext.CopySym(init.Cov())
 
 	// initialize covariance matrix to initial condition covariance
-	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
+	p := mat.NewSymDense(init.Cov().SymmetricDim(), nil)
 	p.CopySym(init.Cov())
 
 	// innovation vector
@@ -233,7 +233,7 @@ func (k *UKF) propagateSigmaPoints(sp *SigmaPoints, u mat.Vector) (*sigmaPointsN
 
 	var spNext mat.Vector
 	var err error
-	qLen := k.q.Cov().Symmetric()
+	qLen := k.q.Cov().SymmetricDim()
 
 	// propagate all sigma points and observe their output
 	for c := 0; c < cols; c++ {
@@ -346,7 +346,7 @@ func (k *UKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 
 	var spOut mat.Vector
 	var err error
-	rLen := k.r.Cov().Symmetric()
+	rLen := k.r.Cov().SymmetricDim()
 
 	// observe sigma points outputs
 	for c := 0; c < cols; c++ {
@@ -472,7 +472,7 @@ func (k *UKF) OutputNoise() filter.Noise {
 
 // Cov returns UKF covariance
 func (k *UKF) Cov() mat.Symmetric {
-	cov := mat.NewSymDense(k.p.Symmetric(), nil)
+	cov := mat.NewSymDense(k.p.SymmetricDim(), nil)
 	cov.CopySym(k.p)
 
 	return cov
@@ -485,8 +485,8 @@ func (k *UKF) SetCov(cov mat.Symmetric) error {
 		return fmt.Errorf("invalid covariance matrix: %v", cov)
 	}
 
-	if cov.Symmetric() != k.p.Symmetric() {
-		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+	if cov.SymmetricDim() != k.p.SymmetricDim() {
+		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.SymmetricDim(), cov.SymmetricDim())
 	}
 
 	k.p.CopySym(cov)

@@ -37,7 +37,7 @@ func (e *Zero) Sample() mat.Vector {
 
 // Cov returns empty covariance matrix: symmetric matrix with zero values.
 func (e *Zero) Cov() mat.Symmetric {
-	cov := mat.NewSymDense(e.cov.Symmetric(), nil)
+	cov := mat.NewSymDense(e.cov.SymmetricDim(), nil)
 	cov.CopySym(e.cov)
 
 	return cov

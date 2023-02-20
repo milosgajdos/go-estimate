@@ -29,14 +29,15 @@ type KF struct {
 
 // New creates new KF and returns it.
 // It accepts the following parameters:
-//  - m:      dynamical system model
-//  - init:   initial condition of the filter
-//  - z:      disturbance input a.k.a. process noise corresponding to E disturbance matrix
-//  - wn:     output noise a.k.a. measurement noise
-//  - c:      KF configuration (contains propagation and observation matrices)
+//   - m:      dynamical system model
+//   - init:   initial condition of the filter
+//   - z:      disturbance input a.k.a. process noise corresponding to E disturbance matrix
+//   - wn:     output noise a.k.a. measurement noise
+//   - c:      KF configuration (contains propagation and observation matrices)
+//
 // It returns error if either of the following conditions is met:
-//  - invalid model is given: model dimensions must be positive integers
-//  - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
+//   - invalid model is given: model dimensions must be positive integers
+//   - invalid state or output noise is given: noise covariance must either be nil or match the model dimensions
 func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF, error) {
 	// size of the input and output vectors
 	nx, _, ny, _ := m.SystemDims()
@@ -45,16 +46,16 @@ func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF,
 	}
 
 	if z != nil {
-		if z.Cov().Symmetric() != nx {
-			return nil, fmt.Errorf("invalid state noise dimension: %d != %d", z.Cov().Symmetric(), ny)
+		if z.Cov().SymmetricDim() != nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d != %d", z.Cov().SymmetricDim(), ny)
 		}
 	} else {
 		z, _ = noise.NewNone()
 	}
 
 	if wn != nil {
-		if wn.Cov().Symmetric() != ny {
-			return nil, fmt.Errorf("invalid output noise dimension: %d", wn.Cov().Symmetric())
+		if wn.Cov().SymmetricDim() != ny {
+			return nil, fmt.Errorf("invalid output noise dimension: %d", wn.Cov().SymmetricDim())
 		}
 	} else {
 		wn, _ = noise.NewNone()
@@ -85,11 +86,11 @@ func New(m filter.DiscreteModel, init filter.InitCond, z, wn filter.Noise) (*KF,
 	}
 
 	// initialize covariance matrix to initial condition covariance
-	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
+	p := mat.NewSymDense(init.Cov().SymmetricDim(), nil)
 	p.CopySym(init.Cov())
 
 	// predicted state covariance
-	pNext := mat.NewSymDense(init.Cov().Symmetric(), nil)
+	pNext := mat.NewSymDense(init.Cov().SymmetricDim(), nil)
 
 	// innovation vector
 	inn := mat.NewVecDense(ny, nil)
@@ -127,7 +128,7 @@ func (k *KF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	}
 
 	// update KF predicted covariance matrix
-	n := k.pNext.Symmetric()
+	n := k.pNext.SymmetricDim()
 	for i := 0; i < n; i++ {
 		for j := 0; j < n; j++ {
 			k.pNext.SetSym(i, j, cov.At(i, j))
@@ -259,7 +260,7 @@ func (k *KF) OutputNoise() filter.Noise {
 
 // Cov returns KF covariance
 func (k *KF) Cov() mat.Symmetric {
-	cov := mat.NewSymDense(k.p.Symmetric(), nil)
+	cov := mat.NewSymDense(k.p.SymmetricDim(), nil)
 	cov.CopySym(k.p)
 
 	return cov
@@ -272,8 +273,8 @@ func (k *KF) SetCov(cov mat.Symmetric) error {
 		return fmt.Errorf("invalid covariance matrix: %v", cov)
 	}
 
-	if cov.Symmetric() != k.p.Symmetric() {
-		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+	if cov.SymmetricDim() != k.p.SymmetricDim() {
+		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.SymmetricDim(), cov.SymmetricDim())
 	}
 
 	k.p.CopySym(cov)

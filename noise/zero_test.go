@@ -55,7 +55,7 @@ func TestZeroMeanCov(t *testing.T) {
 		assert.NoError(err)
 
 		eCov := e.Cov()
-		assert.Equal(test.cov.Symmetric(), eCov.Symmetric())
+		assert.Equal(test.cov.SymmetricDim(), eCov.SymmetricDim())
 
 		rows, cols := eCov.Dims()
 		for r := 0; r < rows; r++ {

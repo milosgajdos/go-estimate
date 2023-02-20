@@ -17,7 +17,7 @@ func NewInitCond(state mat.Vector, cov mat.Symmetric) *InitCond {
 	s := &mat.VecDense{}
 	s.CloneFromVec(state)
 
-	c := mat.NewSymDense(cov.Symmetric(), nil)
+	c := mat.NewSymDense(cov.SymmetricDim(), nil)
 	c.CopySym(cov)
 
 	return &InitCond{
@@ -36,7 +36,7 @@ func (c *InitCond) State() mat.Vector {
 
 // Cov returns initial covariance
 func (c *InitCond) Cov() mat.Symmetric {
-	cov := mat.NewSymDense(c.cov.Symmetric(), nil)
+	cov := mat.NewSymDense(c.cov.SymmetricDim(), nil)
 	cov.CopySym(c.cov)
 
 	return cov

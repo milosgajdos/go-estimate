@@ -60,16 +60,16 @@ func New(m filter.Model, ic filter.InitCond, q, r filter.Noise, p int, pdf distm
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != nx {
-			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().SymmetricDim() != nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().SymmetricDim())
 		}
 	} else {
 		q, _ = noise.NewZero(nx)
 	}
 
 	if r != nil {
-		if r.Cov().Symmetric() != ny {
-			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().Symmetric())
+		if r.Cov().SymmetricDim() != ny {
+			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().SymmetricDim())
 		}
 	} else {
 		r, _ = noise.NewZero(ny)

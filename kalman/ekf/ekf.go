@@ -56,16 +56,16 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != nx {
-			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().SymmetricDim() != nx {
+			return nil, fmt.Errorf("invalid state noise dimension: %d", q.Cov().SymmetricDim())
 		}
 	} else {
 		q, _ = noise.NewNone()
 	}
 
 	if r != nil {
-		if r.Cov().Symmetric() != ny {
-			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().Symmetric())
+		if r.Cov().SymmetricDim() != ny {
+			return nil, fmt.Errorf("invalid output noise dimension: %d", r.Cov().SymmetricDim())
 		}
 	} else {
 		r, _ = noise.NewNone()
@@ -109,11 +109,11 @@ func New(m filter.Model, init filter.InitCond, q, r filter.Noise) (*EKF, error) 
 	h := mat.NewDense(ny, nx, nil)
 
 	// initialize covariance matrix to initial condition covariance
-	p := mat.NewSymDense(init.Cov().Symmetric(), nil)
+	p := mat.NewSymDense(init.Cov().SymmetricDim(), nil)
 	p.CopySym(init.Cov())
 
 	// predicted state covariance
-	pNext := mat.NewSymDense(init.Cov().Symmetric(), nil)
+	pNext := mat.NewSymDense(init.Cov().SymmetricDim(), nil)
 
 	// innovation vector
 	inn := mat.NewVecDense(ny, nil)
@@ -161,7 +161,7 @@ func (k *EKF) Predict(x, u mat.Vector) (filter.Estimate, error) {
 	}
 
 	// update EKF covariance matrix
-	n := k.pNext.Symmetric()
+	n := k.pNext.SymmetricDim()
 	for i := 0; i < n; i++ {
 		for j := 0; j < n; j++ {
 			k.pNext.SetSym(i, j, cov.At(i, j))
@@ -300,7 +300,7 @@ func (k *EKF) OutputNoise() filter.Noise {
 
 // Cov returns EKF covariance
 func (k *EKF) Cov() mat.Symmetric {
-	cov := mat.NewSymDense(k.p.Symmetric(), nil)
+	cov := mat.NewSymDense(k.p.SymmetricDim(), nil)
 	cov.CopySym(k.p)
 
 	return cov
@@ -313,8 +313,8 @@ func (k *EKF) SetCov(cov mat.Symmetric) error {
 		return fmt.Errorf("invalid covariance matrix: %v", cov)
 	}
 
-	if cov.Symmetric() != k.p.Symmetric() {
-		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.Symmetric(), cov.Symmetric())
+	if cov.SymmetricDim() != k.p.SymmetricDim() {
+		return fmt.Errorf("invalid covariance matrix dims: [%d x %d]", cov.SymmetricDim(), cov.SymmetricDim())
 	}
 
 	k.p.CopySym(cov)

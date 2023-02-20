@@ -36,8 +36,8 @@ func New(m filter.Model, init filter.InitCond, q filter.Noise) (*ERTS, error) {
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != in {
-			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().SymmetricDim() != in {
+			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().SymmetricDim())
 		}
 	} else {
 		q, _ = noise.NewNone()

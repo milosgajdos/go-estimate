@@ -207,7 +207,7 @@ func TestKFCov(t *testing.T) {
 	err = f.SetCov(mat.NewSymDense(30, nil))
 	assert.Error(err)
 
-	err = f.SetCov(mat.NewSymDense(f.p.Symmetric(), nil))
+	err = f.SetCov(mat.NewSymDense(f.p.SymmetricDim(), nil))
 	assert.NoError(err)
 }
 

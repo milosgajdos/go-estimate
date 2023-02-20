@@ -52,8 +52,8 @@ func TestInitCond(t *testing.T) {
 	}
 
 	c := ic.Cov()
-	for i := 0; i < cov.Symmetric(); i++ {
-		for j := 0; j < cov.Symmetric(); j++ {
+	for i := 0; i < cov.SymmetricDim(); i++ {
+		for j := 0; j < cov.SymmetricDim(); j++ {
 			assert.Equal(cov.At(i, j), c.At(i, j))
 		}
 	}

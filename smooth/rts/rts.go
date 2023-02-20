@@ -28,8 +28,8 @@ func New(m filter.DiscreteModel, init filter.InitCond, q filter.Noise) (*RTS, er
 	}
 
 	if q != nil {
-		if q.Cov().Symmetric() != in {
-			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().Symmetric())
+		if q.Cov().SymmetricDim() != in {
+			return nil, fmt.Errorf("Invalid state noise dimension: %d", q.Cov().SymmetricDim())
 		}
 	} else {
 		q, _ = noise.NewNone()

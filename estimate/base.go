@@ -32,7 +32,7 @@ func NewBase(val mat.Vector) (*Base, error) {
 // NewBaseWithCov returns base information estimate given state, output and covariance
 func NewBaseWithCov(val mat.Vector, cov mat.Symmetric) (*Base, error) {
 	rv, _ := val.Dims()
-	rc := cov.Symmetric()
+	rc := cov.SymmetricDim()
 
 	if rv != rc {
 		return nil, fmt.Errorf("Invalid dimensions. Val: %d, Cov: %d x %d", rv, rc, rc)
@@ -41,7 +41,7 @@ func NewBaseWithCov(val mat.Vector, cov mat.Symmetric) (*Base, error) {
 	v := &mat.VecDense{}
 	v.CloneFromVec(val)
 
-	c := mat.NewSymDense(cov.Symmetric(), nil)
+	c := mat.NewSymDense(cov.SymmetricDim(), nil)
 	c.CopySym(cov)
 
 	return &Base{
@@ -60,7 +60,7 @@ func (b *Base) Val() mat.Vector {
 
 // Cov returns covariance estimate
 func (b *Base) Cov() mat.Symmetric {
-	cov := mat.NewSymDense(b.cov.Symmetric(), nil)
+	cov := mat.NewSymDense(b.cov.SymmetricDim(), nil)
 	cov.CopySym(b.cov)
 
 	return cov

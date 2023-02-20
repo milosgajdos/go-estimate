@@ -59,7 +59,7 @@ func TestGaussianMeanCov(t *testing.T) {
 		assert.NoError(err)
 
 		gCov := g.Cov()
-		assert.Equal(cov.Symmetric(), gCov.Symmetric())
+		assert.Equal(cov.SymmetricDim(), gCov.SymmetricDim())
 
 		rows, cols := gCov.Dims()
 		for r := 0; r < rows; r++ {

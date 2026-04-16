@@ -218,6 +218,9 @@ func (k *EKF) Update(x, u, z mat.Vector) (filter.Estimate, error) {
 	inn := &mat.VecDense{}
 	inn.SubVec(z, y)
 
+	// normalization dYaw in innovation vector
+	inn.SetVec(ny-1, k.calcDeltaAngle(z.AtVec(ny-1), y.AtVec(ny-1)))
+
 	// update state x
 	corr := &mat.Dense{}
 	corr.Mul(gain, inn)
@@ -328,4 +331,18 @@ func (k *EKF) Gain() mat.Matrix {
 	gain.CloneFrom(k.k)
 
 	return gain
+}
+
+// CalcDeltaYaw returns correct delta Euler angles
+func (k *EKF) calcDeltaAngle(inputAngle, lastAngle float64) float64 {
+	delta := inputAngle - lastAngle
+	delta = math.Mod(delta, 2*math.Pi)
+
+	if delta > math.Pi {
+		delta -= 2 * math.Pi
+	} else if delta < -math.Pi {
+		delta += 2 * math.Pi
+	}
+
+	return delta
 }
